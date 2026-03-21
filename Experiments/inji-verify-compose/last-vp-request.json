@@ -1,0 +1,15 @@
+{
+    "verifyUiUrl":  "http://localhost:13000",
+    "verifyApiUrl":  "http://localhost:18080/v1/verify",
+    "claimName":  "MOSIP ID",
+    "claimType":  "MOSIPVerifiableCredential",
+    "clientId":  "did:web:localhost:13000:v1:verify",
+    "transactionId":  "demo-txn-f3a42374",
+    "requestId":  "req_6414e69b-b2fd-4d89-a9a5-a07c9c44d043",
+    "initialStatus":  "ACTIVE",
+    "expiresAt":  1774099846338,
+    "requestUri":  "http://localhost:13000/v1/verify/vp-request/req_6414e69b-b2fd-4d89-a9a5-a07c9c44d043",
+    "backendRequestUrl":  "http://localhost:18080/v1/verify/vp-request/req_6414e69b-b2fd-4d89-a9a5-a07c9c44d043",
+    "statusUrl":  "http://localhost:18080/v1/verify/vp-request/req_6414e69b-b2fd-4d89-a9a5-a07c9c44d043/status",
+    "resultUrl":  "http://localhost:18080/v1/verify/vp-result/demo-txn-f3a42374"
+}
