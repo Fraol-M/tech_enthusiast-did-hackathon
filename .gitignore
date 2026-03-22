@@ -1,0 +1,10 @@
+node_modules/
+apps/refupass-web/node_modules/
+apps/refupass-web/dist/
+apps/refupass-api/.venv/
+apps/refupass-api/__pycache__/
+apps/refupass-api/refupass.db
+apps/refupass-api/.env
+apps/refupass-web/.env
+*.pyc
+*__pycache__
