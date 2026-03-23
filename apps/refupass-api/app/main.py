@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import date, datetime
 from uuid import uuid4
 
@@ -39,8 +41,18 @@ from .services.verify_client import InjiVerifyClient
 
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name)
 verify_client = InjiVerifyClient(settings)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        seed_demo_data(db)
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -49,14 +61,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup() -> None:
-    Base.metadata.create_all(bind=engine)
-    with SessionLocal() as db:
-        seed_demo_data(db)
-
 
 def get_current_cycle_record(db: Session) -> AidCycle:
     cycle = db.scalar(select(AidCycle).where(AidCycle.is_current.is_(True)))

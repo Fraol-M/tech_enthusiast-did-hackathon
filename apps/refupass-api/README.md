@@ -44,3 +44,14 @@ DEMO_BENEFICIARY_SUBJECT=5860356276
 ```
 
 `DATABASE_URL` defaults to SQLite for local development, but the SQL seed file in [`sql/postgres_init.sql`](./sql/postgres_init.sql) shows the intended Postgres schema for hosted deployment.
+
+## Tests
+
+Run the backend suite from this folder:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m pytest
+```
+
+The tests use an isolated temporary SQLite database per test run, so they do not touch your working `refupass.db`.
