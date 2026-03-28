@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import json
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+from app import main
+from app.database import Base
+from app.models import Beneficiary
+from app.seed import seed_demo_data
+from app.services.verify_client import InjiVerifyClient
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    db_path = tmp_path / "refupass-test.db"
+    test_engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+        future=True,
+    )
+    TestingSessionLocal = sessionmaker(bind=test_engine, autoflush=False, autocommit=False, future=True)
+
+    Base.metadata.create_all(bind=test_engine)
+    with TestingSessionLocal() as db:
+        seed_demo_data(db)
+
+    monkeypatch.setattr(main, "engine", test_engine)
+    monkeypatch.setattr(main, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(
+        main,
+        "verify_client",
+        InjiVerifyClient(SimpleNamespace(inji_verify_mode="stub", inji_verify_api_url="http://unused")),
+    )
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    main.app.dependency_overrides[main.get_db] = override_get_db
+
+    with TestClient(main.app) as test_client:
+        yield test_client
+
+    main.app.dependency_overrides.clear()
+    test_engine.dispose()
+
+
+@pytest.fixture
+def admin_headers(client: TestClient) -> dict[str, str]:
+    response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+    token = response.json()["accessToken"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def worker_headers(client: TestClient) -> dict[str, str]:
+    response = client.post("/auth/login", json={"username": "aidworker", "password": "worker123"})
+    token = response.json()["accessToken"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def beneficiary_ids(client: TestClient, admin_headers: dict[str, str]) -> dict[str, int]:
+    response = client.get("/beneficiaries", headers=admin_headers)
+    beneficiaries = response.json()
+    return {item["beneficiaryCode"]: item["id"] for item in beneficiaries}
+
+
+@pytest.fixture
+def printable_pass_payload(client: TestClient, admin_headers: dict[str, str], beneficiary_ids: dict[str, int]) -> str:
+    response = client.post(
+        "/issuance-sessions",
+        headers=admin_headers,
+        json={"beneficiaryId": beneficiary_ids["BEN-001"]},
+    )
+    return response.json()["printablePass"]["qrPayload"]
+
+
+@pytest.fixture
+def credential_payload() -> dict:
+    return {
+        "@context": ["https://www.w3.org/2018/credentials/v1"],
+        "type": ["VerifiableCredential", "RefuPassFoodAidCredential"],
+        "credentialSubject": {
+            "beneficiaryId": "5860356276",
+            "fullName": "Amina Hassan",
+        },
+        "proof": {"type": "Ed25519Signature2020"},
+    }
+
+
+@pytest.fixture
+def db_session(client: TestClient):
+    override_get_db = next(iter(client.app.dependency_overrides.values()))
+    generator = override_get_db()
+    db = next(generator)
+    try:
+        yield db
+    finally:
+        db.close()
