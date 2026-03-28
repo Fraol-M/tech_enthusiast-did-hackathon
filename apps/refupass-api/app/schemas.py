@@ -29,6 +29,12 @@ class LoginResponse(ApiModel):
     token_type: str = "bearer"
     role: str
     display_name: str
+    ngo_name: str
+
+
+class NgoSummary(ApiModel):
+    id: int
+    name: str
 
 
 class AidCycleResponse(ApiModel):
@@ -85,9 +91,13 @@ class BeneficiarySummary(ApiModel):
     full_name: str
     phone: str
     gender: str
+    identity_status: str
+    identity_provider: str | None = None
+    verified_at: datetime | None = None
     program_name: str
     distribution_site: str
     ration_tier: str
+    ngo: NgoSummary
     household: HouseholdSummary
     current_eligibility: EligibilitySnapshot | None = None
     current_redemption: RedemptionResponse | None = None
@@ -111,6 +121,27 @@ class BeneficiaryCreate(ApiModel):
     family_size: int
     primary_contact_name: str
     settlement: str
+
+
+class AdminRegisterRequest(ApiModel):
+    ngo_name: str
+    admin_display_name: str
+    username: str
+    password: str
+
+
+class AidWorkerCreate(ApiModel):
+    display_name: str
+    username: str
+    password: str
+
+
+class StaffUserResponse(ApiModel):
+    id: int
+    username: str
+    role: str
+    display_name: str
+    ngo_name: str
 
 
 class EligibilityUpdate(ApiModel):

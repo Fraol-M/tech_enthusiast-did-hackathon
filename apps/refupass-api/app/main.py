@@ -3,19 +3,22 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import or_, select
+from sqlalchemy import inspect, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
-from .models import AidCycle, Beneficiary, Eligibility, Grievance, Household, IssuanceSession, Redemption, User
+from .models import AidCycle, Beneficiary, Eligibility, Grievance, Household, IssuanceSession, Ngo, Redemption, User
 from .schemas import (
+    AdminRegisterRequest,
     AidCycleResponse,
+    AidWorkerCreate,
     BeneficiaryCreate,
     BeneficiaryDetail,
     BeneficiarySummary,
@@ -30,6 +33,7 @@ from .schemas import (
     LoginResponse,
     RedeemRequest,
     RedemptionResponse,
+    StaffUserResponse,
     WorkerBeneficiarySummary,
     WorkerVerifyRequest,
     WorkerVerifyResponse,
@@ -44,9 +48,68 @@ settings = get_settings()
 verify_client = InjiVerifyClient(settings)
 
 
+def apply_runtime_migrations() -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "users" not in table_names or "beneficiaries" not in table_names or "ngos" not in table_names:
+        return
+
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+    beneficiary_columns = {column["name"] for column in inspector.get_columns("beneficiaries")}
+
+    with engine.begin() as connection:
+        if "ngo_id" not in user_columns:
+            connection.execute(text("ALTER TABLE users ADD COLUMN ngo_id INTEGER"))
+        if "ngo_id" not in beneficiary_columns:
+            connection.execute(text("ALTER TABLE beneficiaries ADD COLUMN ngo_id INTEGER"))
+        if "identity_status" not in beneficiary_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE beneficiaries "
+                    "ADD COLUMN identity_status VARCHAR(30) NOT NULL DEFAULT 'verified_manual'"
+                )
+            )
+        if "identity_provider" not in beneficiary_columns:
+            connection.execute(text("ALTER TABLE beneficiaries ADD COLUMN identity_provider VARCHAR(60)"))
+        if "verified_at" not in beneficiary_columns:
+            connection.execute(text("ALTER TABLE beneficiaries ADD COLUMN verified_at DATETIME"))
+
+        default_ngo_name = "Relief Alliance Ethiopia"
+        ngo_id = connection.execute(
+            text("SELECT id FROM ngos WHERE name = :name"),
+            {"name": default_ngo_name},
+        ).scalar()
+        if ngo_id is None:
+            connection.execute(
+                text(
+                    "INSERT INTO ngos (name, created_at, updated_at) "
+                    "VALUES (:name, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                ),
+                {"name": default_ngo_name},
+            )
+            ngo_id = connection.execute(
+                text("SELECT id FROM ngos WHERE name = :name"),
+                {"name": default_ngo_name},
+            ).scalar()
+
+        connection.execute(text("UPDATE users SET ngo_id = :ngo_id WHERE ngo_id IS NULL"), {"ngo_id": ngo_id})
+        connection.execute(
+            text(
+                "UPDATE beneficiaries "
+                "SET ngo_id = :ngo_id, "
+                "identity_status = COALESCE(identity_status, 'verified_manual'), "
+                "identity_provider = COALESCE(identity_provider, 'legacy_seed'), "
+                "verified_at = COALESCE(verified_at, created_at) "
+                "WHERE ngo_id IS NULL OR identity_status IS NULL OR identity_provider IS NULL OR verified_at IS NULL"
+            ),
+            {"ngo_id": ngo_id},
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
+    apply_runtime_migrations()
     with SessionLocal() as db:
         seed_demo_data(db)
     yield
@@ -61,6 +124,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def get_current_cycle_record(db: Session) -> AidCycle:
     cycle = db.scalar(select(AidCycle).where(AidCycle.is_current.is_(True)))
@@ -98,12 +162,23 @@ def serialize_grievance(grievance: Grievance) -> GrievanceResponse:
     return GrievanceResponse.model_validate(grievance)
 
 
+def serialize_staff_user(user: User) -> StaffUserResponse:
+    return StaffUserResponse(
+        id=user.id,
+        username=user.username,
+        role=user.role,
+        display_name=user.display_name,
+        ngo_name=user.ngo.name,
+    )
+
+
 def serialize_beneficiary(db: Session, beneficiary: Beneficiary, aid_cycle: AidCycle) -> BeneficiarySummary:
     current_eligibility = get_current_eligibility(db, beneficiary.id, aid_cycle.id)
     current_redemption = get_current_redemption(db, beneficiary.id, aid_cycle.id)
     return BeneficiarySummary.model_validate(
         {
             **beneficiary.__dict__,
+            "ngo": beneficiary.ngo,
             "household": beneficiary.household,
             "current_eligibility": current_eligibility,
             "current_redemption": current_redemption,
@@ -130,6 +205,17 @@ def serialize_beneficiary_detail(db: Session, beneficiary: Beneficiary, aid_cycl
             "grievances": grievances,
         }
     )
+
+
+def get_beneficiary_for_ngo_or_404(db: Session, beneficiary_id: int, ngo_id: int) -> Beneficiary:
+    beneficiary = db.scalar(
+        select(Beneficiary)
+        .options(joinedload(Beneficiary.household), joinedload(Beneficiary.ngo))
+        .where(Beneficiary.id == beneficiary_id, Beneficiary.ngo_id == ngo_id)
+    )
+    if not beneficiary:
+        raise HTTPException(status_code=404, detail="Beneficiary not found")
+    return beneficiary
 
 
 def is_verifiable_credential(payload: dict) -> bool:
@@ -173,9 +259,14 @@ def find_beneficiary_from_payload(
     db: Session,
     payload: dict,
     explicit_beneficiary_id: int | None,
+    ngo_id: int,
 ) -> Beneficiary | None:
     if explicit_beneficiary_id:
-        return db.get(Beneficiary, explicit_beneficiary_id)
+        return db.scalar(
+            select(Beneficiary)
+            .options(joinedload(Beneficiary.household), joinedload(Beneficiary.ngo))
+            .where(Beneficiary.id == explicit_beneficiary_id, Beneficiary.ngo_id == ngo_id)
+        )
 
     subject = payload.get("credentialSubject") or {}
     candidate_values = [
@@ -188,8 +279,11 @@ def find_beneficiary_from_payload(
         if not candidate:
             continue
         beneficiary = db.scalar(
-            select(Beneficiary).where(
-                or_(Beneficiary.auth_subject == str(candidate), Beneficiary.beneficiary_code == str(candidate))
+            select(Beneficiary)
+            .options(joinedload(Beneficiary.household), joinedload(Beneficiary.ngo))
+            .where(
+                Beneficiary.ngo_id == ngo_id,
+                or_(Beneficiary.auth_subject == str(candidate), Beneficiary.beneficiary_code == str(candidate)),
             )
         )
         if beneficiary:
@@ -220,7 +314,7 @@ def determine_business_status(
     expiration_text = payload.get("expirationDate") or payload.get("validUntil") or subject.get("validUntil")
     if expiration_text:
         try:
-            expiration = datetime.fromisoformat(expiration_text.replace("Z", "+00:00")).date()
+            expiration = date.fromisoformat(expiration_text.replace("Z", "").split("T")[0])
         except ValueError:
             expiration = eligibility.valid_until
         if expiration < date.today():
@@ -237,15 +331,45 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
+@app.post("/auth/register-admin", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+def register_admin(payload: AdminRegisterRequest, db: Session = Depends(get_db)) -> LoginResponse:
+    existing_ngo = db.scalar(select(Ngo).where(Ngo.name == payload.ngo_name))
+    if existing_ngo:
+        raise HTTPException(status_code=400, detail="An NGO with this name already exists")
+
+    existing_user = db.scalar(select(User).where(User.username == payload.username))
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username is already in use")
+
+    ngo = Ngo(name=payload.ngo_name)
+    admin = User(
+        username=payload.username,
+        password=payload.password,
+        role="admin",
+        display_name=payload.admin_display_name,
+        ngo=ngo,
+    )
+    db.add_all([ngo, admin])
+    db.commit()
+    db.refresh(admin)
+    return LoginResponse(
+        access_token=build_access_token(admin),
+        role=admin.role,
+        display_name=admin.display_name,
+        ngo_name=admin.ngo.name,
+    )
+
+
 @app.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
-    user = db.scalar(select(User).where(User.username == payload.username))
+    user = db.scalar(select(User).options(joinedload(User.ngo)).where(User.username == payload.username))
     if not user or user.password != payload.password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     return LoginResponse(
         access_token=build_access_token(user),
         role=user.role,
         display_name=user.display_name,
+        ngo_name=user.ngo.name,
     )
 
 
@@ -257,14 +381,61 @@ def get_current_cycle(
     return AidCycleResponse.model_validate(get_current_cycle_record(db))
 
 
+@app.get("/aid-workers", response_model=list[StaffUserResponse])
+def list_aid_workers(
+    user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+) -> list[StaffUserResponse]:
+    workers = db.scalars(
+        select(User)
+        .options(joinedload(User.ngo))
+        .where(User.ngo_id == user.ngo_id, User.role == "aid_worker")
+        .order_by(User.display_name.asc())
+    ).all()
+    return [serialize_staff_user(worker) for worker in workers]
+
+
+@app.post("/aid-workers", response_model=StaffUserResponse, status_code=status.HTTP_201_CREATED)
+def create_aid_worker(
+    payload: AidWorkerCreate,
+    user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+) -> StaffUserResponse:
+    existing = db.scalar(select(User).where(User.username == payload.username))
+    if existing:
+        raise HTTPException(status_code=400, detail="Username is already in use")
+
+    aid_worker = User(
+        username=payload.username,
+        password=payload.password,
+        role="aid_worker",
+        display_name=payload.display_name,
+        ngo_id=user.ngo_id,
+    )
+    db.add(aid_worker)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Could not create aid worker") from exc
+    db.refresh(aid_worker)
+    aid_worker = db.scalar(select(User).options(joinedload(User.ngo)).where(User.id == aid_worker.id))
+    return serialize_staff_user(aid_worker)
+
+
 @app.get("/beneficiaries", response_model=list[BeneficiarySummary])
 def list_beneficiaries(
     search: str | None = None,
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[BeneficiarySummary]:
     aid_cycle = get_current_cycle_record(db)
-    query = select(Beneficiary).options(joinedload(Beneficiary.household)).order_by(Beneficiary.full_name.asc())
+    query = (
+        select(Beneficiary)
+        .options(joinedload(Beneficiary.household), joinedload(Beneficiary.ngo))
+        .where(Beneficiary.ngo_id == user.ngo_id)
+        .order_by(Beneficiary.full_name.asc())
+    )
     if search:
         pattern = f"%{search.lower()}%"
         query = query.where(
@@ -281,16 +452,10 @@ def list_beneficiaries(
 @app.get("/beneficiaries/{beneficiary_id}", response_model=BeneficiaryDetail)
 def get_beneficiary(
     beneficiary_id: int,
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> BeneficiaryDetail:
-    beneficiary = db.scalar(
-        select(Beneficiary)
-        .options(joinedload(Beneficiary.household))
-        .where(Beneficiary.id == beneficiary_id)
-    )
-    if not beneficiary:
-        raise HTTPException(status_code=404, detail="Beneficiary not found")
+    beneficiary = get_beneficiary_for_ngo_or_404(db, beneficiary_id, user.ngo_id)
     aid_cycle = get_current_cycle_record(db)
     return serialize_beneficiary_detail(db, beneficiary, aid_cycle)
 
@@ -298,7 +463,7 @@ def get_beneficiary(
 @app.post("/beneficiaries", response_model=BeneficiaryDetail, status_code=status.HTTP_201_CREATED)
 def create_beneficiary(
     payload: BeneficiaryCreate,
-    _user: User = Depends(require_role("admin")),
+    user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> BeneficiaryDetail:
     household = db.scalar(select(Household).where(Household.household_code == payload.household_code))
@@ -318,14 +483,22 @@ def create_beneficiary(
         full_name=payload.full_name,
         phone=payload.phone,
         gender=payload.gender,
+        identity_status="record_only",
+        identity_provider="ngo_intake",
         program_name=payload.program_name,
         distribution_site=payload.distribution_site,
         ration_tier=payload.ration_tier,
         household_id=household.id,
+        ngo_id=user.ngo_id,
     )
     db.add(beneficiary)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Beneficiary code or auth subject already exists") from exc
     db.refresh(beneficiary)
+    beneficiary = get_beneficiary_for_ngo_or_404(db, beneficiary.id, user.ngo_id)
     aid_cycle = get_current_cycle_record(db)
     return serialize_beneficiary_detail(db, beneficiary, aid_cycle)
 
@@ -334,12 +507,10 @@ def create_beneficiary(
 def update_eligibility(
     beneficiary_id: int,
     payload: EligibilityUpdate,
-    _user: User = Depends(require_role("admin")),
+    user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> EligibilitySnapshot:
-    beneficiary = db.get(Beneficiary, beneficiary_id)
-    if not beneficiary:
-        raise HTTPException(status_code=404, detail="Beneficiary not found")
+    beneficiary = get_beneficiary_for_ngo_or_404(db, beneficiary_id, user.ngo_id)
 
     aid_cycle = get_current_cycle_record(db)
     eligibility = get_current_eligibility(db, beneficiary.id, aid_cycle.id)
@@ -367,16 +538,10 @@ def update_eligibility(
 @app.post("/issuance-sessions", response_model=IssuanceSessionResponse, status_code=status.HTTP_201_CREATED)
 def create_issuance_session(
     payload: IssuanceSessionRequest,
-    _user: User = Depends(require_role("admin")),
+    user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> IssuanceSessionResponse:
-    beneficiary = db.scalar(
-        select(Beneficiary)
-        .options(joinedload(Beneficiary.household))
-        .where(Beneficiary.id == payload.beneficiary_id)
-    )
-    if not beneficiary:
-        raise HTTPException(status_code=404, detail="Beneficiary not found")
+    beneficiary = get_beneficiary_for_ngo_or_404(db, payload.beneficiary_id, user.ngo_id)
 
     aid_cycle = get_current_cycle_record(db)
     eligibility = get_current_eligibility(db, beneficiary.id, aid_cycle.id)
@@ -426,7 +591,7 @@ async def worker_verify(
             },
         }
 
-    beneficiary = find_beneficiary_from_payload(db, verification_payload, payload.beneficiary_id)
+    beneficiary = find_beneficiary_from_payload(db, verification_payload, payload.beneficiary_id, user.ngo_id)
     aid_cycle = get_current_cycle_record(db)
     eligibility = get_current_eligibility(db, beneficiary.id, aid_cycle.id) if beneficiary else None
     redemption = get_current_redemption(db, beneficiary.id, aid_cycle.id) if beneficiary else None
@@ -464,7 +629,8 @@ async def worker_verify(
         details={
             **verification.get("details", {}),
             "verificationMode": verification_mode,
-            "verifiedBy": user.username,
+            "verifiedBy": user.display_name,
+            "ngoName": user.ngo.name,
             "eligibilityStatus": eligibility.status if eligibility else None,
             "redemptionStatus": redemption.delivery_status if redemption else None,
         },
@@ -477,9 +643,7 @@ def worker_redeem(
     user: User = Depends(require_role("aid_worker", "admin")),
     db: Session = Depends(get_db),
 ) -> RedemptionResponse:
-    beneficiary = db.get(Beneficiary, payload.beneficiary_id)
-    if not beneficiary:
-        raise HTTPException(status_code=404, detail="Beneficiary not found")
+    beneficiary = get_beneficiary_for_ngo_or_404(db, payload.beneficiary_id, user.ngo_id)
 
     aid_cycle = get_current_cycle_record(db)
     existing = get_current_redemption(db, beneficiary.id, aid_cycle.id)
@@ -506,10 +670,15 @@ def worker_redeem(
 
 @app.get("/redemptions", response_model=list[RedemptionResponse])
 def list_redemptions(
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[RedemptionResponse]:
-    redemptions = db.scalars(select(Redemption).order_by(Redemption.created_at.desc())).all()
+    redemptions = db.scalars(
+        select(Redemption)
+        .join(Beneficiary, Beneficiary.id == Redemption.beneficiary_id)
+        .where(Beneficiary.ngo_id == user.ngo_id)
+        .order_by(Redemption.created_at.desc())
+    ).all()
     return [serialize_redemption(redemption) for redemption in redemptions]
 
 
@@ -519,9 +688,7 @@ def create_grievance(
     user: User = Depends(require_role("aid_worker", "admin")),
     db: Session = Depends(get_db),
 ) -> GrievanceResponse:
-    beneficiary = db.get(Beneficiary, payload.beneficiary_id)
-    if not beneficiary:
-        raise HTTPException(status_code=404, detail="Beneficiary not found")
+    beneficiary = get_beneficiary_for_ngo_or_404(db, payload.beneficiary_id, user.ngo_id)
     aid_cycle = db.get(AidCycle, payload.aid_cycle_id) if payload.aid_cycle_id else get_current_cycle_record(db)
 
     grievance = Grievance(
@@ -541,8 +708,13 @@ def create_grievance(
 
 @app.get("/grievances", response_model=list[GrievanceResponse])
 def list_grievances(
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[GrievanceResponse]:
-    grievances = db.scalars(select(Grievance).order_by(Grievance.created_at.desc())).all()
+    grievances = db.scalars(
+        select(Grievance)
+        .join(Beneficiary, Beneficiary.id == Grievance.beneficiary_id)
+        .where(Beneficiary.ngo_id == user.ngo_id)
+        .order_by(Grievance.created_at.desc())
+    ).all()
     return [serialize_grievance(grievance) for grievance in grievances]

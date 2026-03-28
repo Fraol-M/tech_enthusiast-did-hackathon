@@ -3,13 +3,17 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import AidCycle, Beneficiary, Eligibility, Grievance, Household, Redemption, User
+from .models import AidCycle, Beneficiary, Eligibility, Grievance, Household, Ngo, Redemption, User
 
 
 def seed_demo_data(db: Session) -> None:
     existing_user = db.scalar(select(User.id).limit(1))
     if existing_user:
         return
+
+    ngo = db.scalar(select(Ngo).where(Ngo.name == "Relief Alliance Ethiopia"))
+    if not ngo:
+        ngo = Ngo(name="Relief Alliance Ethiopia")
 
     current_cycle = AidCycle(
         name="March 2026 Food Assistance",
@@ -24,8 +28,20 @@ def seed_demo_data(db: Session) -> None:
         is_current=False,
     )
 
-    admin = User(username="admin", password="admin123", role="admin", display_name="NGO Admin")
-    worker = User(username="aidworker", password="worker123", role="aid_worker", display_name="Aid Worker")
+    admin = User(
+        username="admin",
+        password="admin123",
+        role="admin",
+        display_name="NGO Admin",
+        ngo=ngo,
+    )
+    worker = User(
+        username="aidworker",
+        password="worker123",
+        role="aid_worker",
+        display_name="Aid Worker",
+        ngo=ngo,
+    )
 
     household_one = Household(
         household_code="HH-001",
@@ -50,6 +66,7 @@ def seed_demo_data(db: Session) -> None:
         distribution_site="Kebribeyah Site A",
         ration_tier="Standard Family Ration",
         household=household_one,
+        ngo=ngo,
     )
     beneficiary_two = Beneficiary(
         beneficiary_code="BEN-002",
@@ -61,6 +78,7 @@ def seed_demo_data(db: Session) -> None:
         distribution_site="Jijiga Site B",
         ration_tier="Single Adult Ration",
         household=household_two,
+        ngo=ngo,
     )
 
     eligibility_one = Eligibility(
@@ -108,6 +126,7 @@ def seed_demo_data(db: Session) -> None:
         [
             admin,
             worker,
+            ngo,
             current_cycle,
             previous_cycle,
             household_one,

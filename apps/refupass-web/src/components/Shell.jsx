@@ -3,6 +3,8 @@ import { ShieldCheck } from "lucide-react";
 import Button from "./Button";
 
 export default function Shell({ session, onLogout, title, subtitle, navItems, children, aside }) {
+  const ngoName = session?.ngoName || "RefuPass NGO";
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -37,6 +39,9 @@ export default function Shell({ session, onLogout, title, subtitle, navItems, ch
             <div className="user-chip">
               <ShieldCheck size={14} strokeWidth={2.2} />
               <span>{session.displayName}</span>
+            </div>
+            <div className="user-chip user-chip-muted">
+              <span>{ngoName}</span>
             </div>
             <p className="eyebrow">Role: {session.role.replace("_", " ")}</p>
           </div>

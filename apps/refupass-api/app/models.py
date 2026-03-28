@@ -21,6 +21,19 @@ class User(TimestampMixin, Base):
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    ngo_id: Mapped[int] = mapped_column(ForeignKey("ngos.id"), nullable=False, index=True)
+
+    ngo: Mapped["Ngo"] = relationship(back_populates="users")
+
+
+class Ngo(TimestampMixin, Base):
+    __tablename__ = "ngos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(160), unique=True, nullable=False, index=True)
+
+    users: Mapped[list["User"]] = relationship(back_populates="ngo")
+    beneficiaries: Mapped[list["Beneficiary"]] = relationship(back_populates="ngo")
 
 
 class Household(TimestampMixin, Base):
@@ -44,12 +57,17 @@ class Beneficiary(TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String(30), nullable=False)
     gender: Mapped[str] = mapped_column(String(20), nullable=False)
+    identity_status: Mapped[str] = mapped_column(String(30), nullable=False, default="record_only", index=True)
+    identity_provider: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     program_name: Mapped[str] = mapped_column(String(120), nullable=False)
     distribution_site: Mapped[str] = mapped_column(String(120), nullable=False)
     ration_tier: Mapped[str] = mapped_column(String(60), nullable=False)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), nullable=False)
+    ngo_id: Mapped[int] = mapped_column(ForeignKey("ngos.id"), nullable=False, index=True)
 
     household: Mapped[Household] = relationship(back_populates="beneficiaries")
+    ngo: Mapped[Ngo] = relationship(back_populates="beneficiaries")
     eligibility_records: Mapped[list["Eligibility"]] = relationship(back_populates="beneficiary")
     redemptions: Mapped[list["Redemption"]] = relationship(back_populates="beneficiary")
     grievances: Mapped[list["Grievance"]] = relationship(back_populates="beneficiary")

@@ -17,6 +17,7 @@ def test_login_returns_access_token(client: TestClient) -> None:
     payload = response.json()
     assert payload["role"] == "admin"
     assert payload["displayName"] == "NGO Admin"
+    assert payload["ngoName"] == "Relief Alliance Ethiopia"
     assert payload["accessToken"].startswith("demo:admin:")
 
 
@@ -52,6 +53,7 @@ def test_beneficiary_detail_returns_household_and_history(
     assert response.status_code == 200
     payload = response.json()
     assert payload["beneficiaryCode"] == "BEN-001"
+    assert payload["ngo"]["name"] == "Relief Alliance Ethiopia"
     assert payload["household"]["householdCode"] == "HH-001"
     assert len(payload["redemptions"]) == 1
     assert payload["redemptions"][0]["verificationReference"] == "seed-redemption-feb-2026"
@@ -80,8 +82,76 @@ def test_admin_can_create_beneficiary(client: TestClient, admin_headers: dict[st
     assert response.status_code == 201
     payload = response.json()
     assert payload["beneficiaryCode"] == "BEN-003"
+    assert payload["identityStatus"] == "record_only"
+    assert payload["ngo"]["name"] == "Relief Alliance Ethiopia"
     assert payload["household"]["householdCode"] == "HH-003"
     assert payload["currentEligibility"] is None
+
+
+def test_can_register_new_ngo_admin(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register-admin",
+        json={
+            "ngoName": "Frontier Relief",
+            "adminDisplayName": "Marta Ayele",
+            "username": "marta-admin",
+            "password": "safe-pass-123",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["role"] == "admin"
+    assert payload["displayName"] == "Marta Ayele"
+    assert payload["ngoName"] == "Frontier Relief"
+
+
+def test_admin_can_register_aid_worker(client: TestClient, admin_headers: dict[str, str]) -> None:
+    response = client.post(
+        "/aid-workers",
+        headers=admin_headers,
+        json={
+            "displayName": "Lulit Kassa",
+            "username": "lulit-worker",
+            "password": "field-pass-123",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["role"] == "aid_worker"
+    assert payload["displayName"] == "Lulit Kassa"
+    assert payload["ngoName"] == "Relief Alliance Ethiopia"
+
+
+def test_admin_can_list_only_their_own_aid_workers(client: TestClient, admin_headers: dict[str, str]) -> None:
+    register_response = client.post(
+        "/auth/register-admin",
+        json={
+            "ngoName": "Harbor Response",
+            "adminDisplayName": "Sara Noor",
+            "username": "sara-admin",
+            "password": "harbor-123",
+        },
+    )
+    other_admin_token = register_response.json()["accessToken"]
+    other_headers = {"Authorization": f"Bearer {other_admin_token}"}
+    client.post(
+        "/aid-workers",
+        headers=other_headers,
+        json={
+            "displayName": "Other Worker",
+            "username": "other-worker",
+            "password": "worker-pass",
+        },
+    )
+
+    response = client.get("/aid-workers", headers=admin_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert all(worker["ngoName"] == "Relief Alliance Ethiopia" for worker in payload)
+    assert all(worker["username"] != "other-worker" for worker in payload)
 
 
 def test_worker_cannot_create_beneficiary(client: TestClient, worker_headers: dict[str, str]) -> None:

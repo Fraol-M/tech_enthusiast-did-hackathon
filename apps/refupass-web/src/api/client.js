@@ -33,12 +33,24 @@ async function request(path, { token, ...options } = {}) {
 }
 
 export const api = {
+  registerAdmin: (payload) =>
+    request("/auth/register-admin", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   login: (payload) =>
     request("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
   getCurrentCycle: (token) => request("/aid-cycles/current", { token }),
+  getAidWorkers: (token) => request("/aid-workers", { token }),
+  createAidWorker: (token, payload) =>
+    request("/aid-workers", {
+      token,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   getBeneficiaries: (token, search = "") =>
     request(`/beneficiaries${search ? `?search=${encodeURIComponent(search)}` : ""}`, { token }),
   getBeneficiary: (token, id) => request(`/beneficiaries/${id}`, { token }),

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import LoginPage from "./pages/LoginPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import BeneficiaryDetailPage from "./pages/BeneficiaryDetailPage";
+import BeneficiaryCreatePage from "./pages/BeneficiaryCreatePage";
 import WorkerPage from "./pages/WorkerPage";
 import PrintablePassPage from "./pages/PrintablePassPage";
 
@@ -55,6 +56,10 @@ export default function App() {
         <Route
           path="/admin"
           element={<AdminDashboardPage session={session} onLogout={onLogout} />}
+        />
+        <Route
+          path="/admin/beneficiaries/new"
+          element={<BeneficiaryCreatePage session={session} onLogout={onLogout} />}
         />
         <Route
           path="/admin/beneficiaries/:id"
