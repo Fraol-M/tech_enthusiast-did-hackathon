@@ -4,13 +4,16 @@ import Shell from "../components/Shell";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import { extractVerificationInput } from "../utils/verificationInput";
 
 const navItems = [{ to: "/worker", label: "Aid worker console", end: true, icon: ScanSearch }];
 
 export default function WorkerPage({ session, onLogout }) {
   const [credentialText, setCredentialText] = useState("");
+  const [credentialMetadata, setCredentialMetadata] = useState(null);
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("");
+  const [inputStatus, setInputStatus] = useState("");
   const [grievance, setGrievance] = useState({ reason: "Verification blocked", details: "" });
 
   const handleFileUpload = async (event) => {
@@ -18,8 +21,17 @@ export default function WorkerPage({ session, onLogout }) {
     if (!file) {
       return;
     }
-    const text = await file.text();
-    setCredentialText(text);
+    setStatus("");
+    setInputStatus("");
+    try {
+      const payload = await extractVerificationInput(file);
+      setCredentialText(payload.credentialText);
+      setCredentialMetadata(payload.credentialMetadata);
+      setInputStatus(payload.sourceLabel);
+    } catch (error) {
+      setCredentialMetadata(null);
+      setStatus(error.message);
+    }
   };
 
   const handleVerify = async () => {
@@ -27,6 +39,7 @@ export default function WorkerPage({ session, onLogout }) {
     try {
       const payload = await api.verifyCredential(session.accessToken, {
         credentialText,
+        credentialMetadata,
       });
       setResult(payload);
     } catch (error) {
@@ -35,13 +48,13 @@ export default function WorkerPage({ session, onLogout }) {
   };
 
   const handleRedeem = async () => {
-    if (!result?.beneficiarySummary) {
+    if (!result?.enrollmentSummary) {
       return;
     }
     setStatus("");
     try {
       await api.redeem(session.accessToken, {
-        beneficiaryId: result.beneficiarySummary.recordId,
+        programEnrollmentId: result.enrollmentSummary.recordId,
         verificationReference: result.verificationReference,
         notes: "Confirmed through worker console.",
       });
@@ -65,13 +78,13 @@ export default function WorkerPage({ session, onLogout }) {
   };
 
   const handleGrievance = async () => {
-    if (!result?.beneficiarySummary) {
+    if (!result?.enrollmentSummary) {
       return;
     }
     setStatus("");
     try {
       await api.createGrievance(session.accessToken, {
-        beneficiaryId: result.beneficiarySummary.recordId,
+        programEnrollmentId: result.enrollmentSummary.recordId,
         reason: grievance.reason,
         details: grievance.details,
       });
@@ -97,21 +110,25 @@ export default function WorkerPage({ session, onLogout }) {
           <h3>Pass or VC</h3>
           <textarea
             className="credential-textarea"
-            placeholder="Paste pass QR payload or VC JSON"
+            placeholder="Paste VC JSON or upload PDF/JSON/TXT"
             value={credentialText}
-            onChange={(event) => setCredentialText(event.target.value)}
+            onChange={(event) => {
+              setCredentialText(event.target.value);
+              setCredentialMetadata(null);
+            }}
           />
           <div className="card-actions">
             <label className="button button-secondary button-md file-button">
               <Upload size={16} strokeWidth={2.2} />
-              Upload JSON/TXT
-              <input type="file" accept="application/json,text/plain,.json,.txt" onChange={handleFileUpload} hidden />
+              Upload PDF/JSON/TXT
+              <input type="file" accept="application/pdf,application/json,text/plain,.pdf,.json,.txt" onChange={handleFileUpload} hidden />
             </label>
             <Button type="button" onClick={handleVerify}>
               <QrCode size={16} strokeWidth={2.2} />
               Run verification
             </Button>
           </div>
+          {inputStatus ? <p className="panel-copy">{inputStatus}</p> : null}
         </section>
 
         <section className="panel-card">
@@ -140,11 +157,11 @@ export default function WorkerPage({ session, onLogout }) {
                   <strong>{result.distributionSite || "N/A"}</strong>
                 </div>
               </div>
-              {result.beneficiarySummary ? (
+              {result.enrollmentSummary ? (
                 <div className="worker-summary">
-                  <h4>{result.beneficiarySummary.fullName}</h4>
+                  <h4>{result.enrollmentSummary.fullName}</h4>
                   <p>
-                    {result.beneficiarySummary.householdId} • {result.beneficiarySummary.rationTier}
+                    {result.enrollmentSummary.householdId} • {result.enrollmentSummary.rationTier}
                   </p>
                 </div>
               ) : null}
@@ -193,7 +210,7 @@ export default function WorkerPage({ session, onLogout }) {
             />
           </label>
         </div>
-        <Button variant="secondary" type="button" onClick={handleGrievance} disabled={!result?.beneficiarySummary}>
+        <Button variant="secondary" type="button" onClick={handleGrievance} disabled={!result?.enrollmentSummary}>
           <AlertTriangle size={16} strokeWidth={2.2} />
           Open grievance
         </Button>

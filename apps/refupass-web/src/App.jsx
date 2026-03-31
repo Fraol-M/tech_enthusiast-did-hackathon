@@ -1,17 +1,23 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import LoginPage from "./pages/LoginPage";
+import PlatformDashboardPage from "./pages/PlatformDashboardPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
-import BeneficiaryDetailPage from "./pages/BeneficiaryDetailPage";
-import BeneficiaryCreatePage from "./pages/BeneficiaryCreatePage";
+import ProgramEnrollmentDetailPage from "./pages/ProgramEnrollmentDetailPage";
+import PersonEnrollmentCreatePage from "./pages/PersonEnrollmentCreatePage";
 import WorkerPage from "./pages/WorkerPage";
 import PrintablePassPage from "./pages/PrintablePassPage";
 
 const STORAGE_KEY = "refupass-session";
+const SUPPORTED_ROLES = new Set(["platform_admin", "ngo_admin", "aid_worker"]);
 
 function loadStoredSession() {
   try {
-    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
+    const session = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
+    if (!session || !SUPPORTED_ROLES.has(session.role)) {
+      return null;
+    }
+    return session;
   } catch (_error) {
     return null;
   }
@@ -21,6 +27,22 @@ function ProtectedRoute({ session }) {
   const location = useLocation();
   if (!session) {
     return <Navigate to="/" replace state={{ from: location }} />;
+  }
+  return <Outlet />;
+}
+
+function RoleRoute({ session, allowedRoles }) {
+  const location = useLocation();
+  if (!session) {
+    return <Navigate to="/" replace state={{ from: location }} />;
+  }
+  if (!SUPPORTED_ROLES.has(session.role)) {
+    return <Navigate to="/" replace />;
+  }
+  if (!allowedRoles.includes(session.role)) {
+    const fallback =
+      session.role === "platform_admin" ? "/platform" : session.role === "aid_worker" ? "/worker" : "/admin";
+    return <Navigate to={fallback} replace />;
   }
   return <Outlet />;
 }
@@ -44,7 +66,14 @@ export default function App() {
     setSession(null);
   };
 
-  const defaultPath = session?.role === "aid_worker" ? "/worker" : "/admin";
+  const defaultPath =
+    session?.role === "platform_admin"
+      ? "/platform"
+      : session?.role === "aid_worker"
+        ? "/worker"
+        : session?.role === "ngo_admin"
+          ? "/admin"
+          : "/";
 
   return (
     <Routes>
@@ -53,26 +82,36 @@ export default function App() {
         element={session ? <Navigate to={defaultPath} replace /> : <LoginPage onLogin={onLogin} />}
       />
       <Route element={<ProtectedRoute session={session} />}>
+        <Route element={<RoleRoute session={session} allowedRoles={["platform_admin"]} />}>
+          <Route
+            path="/platform"
+            element={<PlatformDashboardPage session={session} onLogout={onLogout} />}
+          />
+        </Route>
+        <Route element={<RoleRoute session={session} allowedRoles={["ngo_admin"]} />}>
         <Route
           path="/admin"
           element={<AdminDashboardPage session={session} onLogout={onLogout} />}
         />
         <Route
-          path="/admin/beneficiaries/new"
-          element={<BeneficiaryCreatePage session={session} onLogout={onLogout} />}
+          path="/admin/enrollments/new"
+          element={<PersonEnrollmentCreatePage session={session} onLogout={onLogout} />}
         />
         <Route
-          path="/admin/beneficiaries/:id"
-          element={<BeneficiaryDetailPage session={session} onLogout={onLogout} />}
+          path="/admin/enrollments/:id"
+          element={<ProgramEnrollmentDetailPage session={session} onLogout={onLogout} />}
         />
         <Route
-          path="/admin/beneficiaries/:id/print"
+          path="/admin/enrollments/:id/print"
           element={<PrintablePassPage session={session} onLogout={onLogout} />}
         />
+        </Route>
+        <Route element={<RoleRoute session={session} allowedRoles={["aid_worker"]} />}>
         <Route
           path="/worker"
           element={<WorkerPage session={session} onLogout={onLogout} />}
         />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to={session ? defaultPath : "/"} replace />} />
     </Routes>

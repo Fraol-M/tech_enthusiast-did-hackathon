@@ -10,9 +10,40 @@ from sqlalchemy.orm import sessionmaker
 
 from app import main
 from app.database import Base
-from app.models import Beneficiary
+from app.main import get_current_cycle_record, get_current_eligibility_for_enrollment
+from app.models import ProgramEnrollment
 from app.seed import seed_demo_data
+from app.services.issuance import build_printable_pass
 from app.services.verify_client import InjiVerifyClient
+
+
+class FakeESignetVerificationService:
+    async def start_verification(self, *, session_token: str) -> dict[str, str]:
+        return {
+            "session_token": session_token,
+            "state": f"state-{session_token}",
+            "nonce": f"nonce-{session_token}",
+            "client_id": "fake-esignet-client",
+            "private_key_pem": "fake-private-key",
+            "code_verifier": "fake-code-verifier",
+            "authorize_url": f"http://mock-esignet.local/authorize?session={session_token}",
+        }
+
+    async def complete_verification(
+        self,
+        *,
+        client_id: str,
+        private_key_pem: str,
+        code_verifier: str,
+        code: str,
+    ) -> dict[str, str]:
+        assert client_id == "fake-esignet-client"
+        assert private_key_pem == "fake-private-key"
+        assert code_verifier == "fake-code-verifier"
+        return {
+            "auth_subject": code,
+            "identity_provider": "esignet_mock",
+        }
 
 
 @pytest.fixture
@@ -36,6 +67,7 @@ def client(tmp_path, monkeypatch):
         "verify_client",
         InjiVerifyClient(SimpleNamespace(inji_verify_mode="stub", inji_verify_api_url="http://unused")),
     )
+    monkeypatch.setattr(main, "esignet_service", FakeESignetVerificationService())
 
     def override_get_db():
         db = TestingSessionLocal()
@@ -54,8 +86,15 @@ def client(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def admin_headers(client: TestClient) -> dict[str, str]:
+def platform_headers(client: TestClient) -> dict[str, str]:
     response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+    token = response.json()["accessToken"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def ngo_admin_headers(client: TestClient) -> dict[str, str]:
+    response = client.post("/auth/login", json={"username": "ngoadmin", "password": "ngo123"})
     token = response.json()["accessToken"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -68,20 +107,24 @@ def worker_headers(client: TestClient) -> dict[str, str]:
 
 
 @pytest.fixture
-def beneficiary_ids(client: TestClient, admin_headers: dict[str, str]) -> dict[str, int]:
-    response = client.get("/beneficiaries", headers=admin_headers)
-    beneficiaries = response.json()
-    return {item["beneficiaryCode"]: item["id"] for item in beneficiaries}
+def enrollment_ids(client: TestClient, ngo_admin_headers: dict[str, str]) -> dict[str, int]:
+    response = client.get("/program-enrollments", headers=ngo_admin_headers)
+    enrollments = response.json()
+    return {item["enrollmentCode"]: item["id"] for item in enrollments}
 
 
 @pytest.fixture
-def printable_pass_payload(client: TestClient, admin_headers: dict[str, str], beneficiary_ids: dict[str, int]) -> str:
-    response = client.post(
-        "/issuance-sessions",
-        headers=admin_headers,
-        json={"beneficiaryId": beneficiary_ids["BEN-001"]},
-    )
-    return response.json()["printablePass"]["qrPayload"]
+def printable_pass_payload(client: TestClient, ngo_admin_headers: dict[str, str], enrollment_ids: dict[str, int]) -> str:
+    override_get_db = next(iter(client.app.dependency_overrides.values()))
+    generator = override_get_db()
+    db = next(generator)
+    try:
+        enrollment = db.scalar(select(ProgramEnrollment).where(ProgramEnrollment.id == enrollment_ids["ENR-001"]))
+        aid_cycle = get_current_cycle_record(db)
+        eligibility = get_current_eligibility_for_enrollment(db, enrollment.id, aid_cycle.id)
+        return build_printable_pass(enrollment, eligibility, aid_cycle).qr_payload
+    finally:
+        db.close()
 
 
 @pytest.fixture
@@ -90,7 +133,7 @@ def credential_payload() -> dict:
         "@context": ["https://www.w3.org/2018/credentials/v1"],
         "type": ["VerifiableCredential", "RefuPassFoodAidCredential"],
         "credentialSubject": {
-            "beneficiaryId": "5860356276",
+            "subjectId": "5860356276",
             "fullName": "Amina Hassan",
         },
         "proof": {"type": "Ed25519Signature2020"},

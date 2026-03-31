@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi.testclient import TestClient
+from app import main
 
 
 def test_worker_verify_printable_pass_is_redeemable(
@@ -22,27 +23,35 @@ def test_worker_verify_printable_pass_is_redeemable(
     assert payload["cryptographicStatus"] == "not_checked"
     assert payload["businessStatus"] == "valid"
     assert payload["canRedeem"] is True
-    assert payload["beneficiarySummary"]["beneficiaryCode"] == "BEN-001"
+    assert payload["enrollmentSummary"]["enrollmentCode"] == "ENR-001"
 
 
 def test_worker_redeem_then_verify_again_returns_already_redeemed(
     client: TestClient,
     worker_headers: dict[str, str],
     printable_pass_payload: str,
+    ngo_admin_headers: dict[str, str],
+    enrollment_ids: dict[str, int],
 ) -> None:
+    issuance_session = client.post(
+        "/issuance-sessions",
+        headers=ngo_admin_headers,
+        json={"programEnrollmentId": enrollment_ids["ENR-001"]},
+    )
+    session_token = issuance_session.json()["sessionToken"]
     first_verify = client.post(
         "/worker/verify",
         headers=worker_headers,
         json={"credentialText": printable_pass_payload},
     )
     verification_reference = first_verify.json()["verificationReference"]
-    beneficiary_id = first_verify.json()["beneficiarySummary"]["recordId"]
+    enrollment_id = first_verify.json()["enrollmentSummary"]["recordId"]
 
     redeem = client.post(
         "/worker/redeem",
         headers=worker_headers,
         json={
-            "beneficiaryId": beneficiary_id,
+            "programEnrollmentId": enrollment_id,
             "verificationReference": verification_reference,
             "notes": "Delivered at site",
         },
@@ -52,23 +61,38 @@ def test_worker_redeem_then_verify_again_returns_already_redeemed(
         headers=worker_headers,
         json={"credentialText": printable_pass_payload},
     )
+    updated_session = client.get(f"/issuance-sessions/{session_token}", headers=ngo_admin_headers)
 
     assert redeem.status_code == 201
     assert second_verify.status_code == 200
+    assert redeem.json()["programEnrollmentId"] is not None
+    assert redeem.json()["entitlementId"] is not None
     assert second_verify.json()["businessStatus"] == "already_redeemed"
     assert second_verify.json()["canRedeem"] is False
+    assert updated_session.status_code == 200
+    assert updated_session.json()["status"] == "redeemed"
 
 
 def test_worker_verify_credential_json_uses_cryptographic_stub(
     client: TestClient,
     worker_headers: dict[str, str],
     credential_payload: dict,
+    ngo_admin_headers: dict[str, str],
+    enrollment_ids: dict[str, int],
 ) -> None:
+    issuance_session = client.post(
+        "/issuance-sessions",
+        headers=ngo_admin_headers,
+        json={"programEnrollmentId": enrollment_ids["ENR-001"]},
+    )
+    session_token = issuance_session.json()["sessionToken"]
+
     response = client.post(
         "/worker/verify",
         headers=worker_headers,
         json={"credential": credential_payload},
     )
+    updated_session = client.get(f"/issuance-sessions/{session_token}", headers=ngo_admin_headers)
 
     assert response.status_code == 200
     payload = response.json()
@@ -76,28 +100,75 @@ def test_worker_verify_credential_json_uses_cryptographic_stub(
     assert payload["cryptographicStatus"] == "valid"
     assert payload["businessStatus"] == "valid"
     assert payload["details"]["mode"] == "stub"
+    assert updated_session.status_code == 200
+    assert updated_session.json()["status"] == "credential_verified"
 
 
-def test_worker_verify_rejects_invalid_json_text(client: TestClient, worker_headers: dict[str, str]) -> None:
+def test_worker_verify_raw_string_returns_invalid_in_stub_mode(client: TestClient, worker_headers: dict[str, str]) -> None:
     response = client.post(
         "/worker/verify",
         headers=worker_headers,
-        json={"credentialText": "{not-valid-json"},
+        json={"credentialText": "opaque-credential-qr-string"},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Credential text is not valid JSON"
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["verificationMode"] == "credential_string"
+    assert payload["cryptographicStatus"] == "invalid"
+    assert payload["businessStatus"] == "invalid"
+
+
+def test_worker_verify_credential_string_with_metadata_resolves_enrollment(
+    client: TestClient,
+    worker_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    class FakeVerifyClient:
+        async def verify(self, _credential):
+            return {
+                "cryptographicStatus": "valid",
+                "details": {
+                    "mode": "passthrough",
+                    "claims": {
+                        "subjectId": "5860356276",
+                        "programName": "Emergency Food Assistance",
+                        "validUntil": "2028-03-29T00:00:00Z",
+                    },
+                },
+            }
+
+    monkeypatch.setattr(main, "verify_client", FakeVerifyClient())
+
+    response = client.post(
+        "/worker/verify",
+        headers=worker_headers,
+        json={
+            "credentialText": "opaque-credential-qr-string",
+            "credentialMetadata": {
+                "subjectId": "5860356276",
+                "programName": "Emergency Food Assistance",
+                "validUntil": "2028-03-29T00:00:00Z",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["verificationMode"] == "credential_string"
+    assert payload["cryptographicStatus"] == "valid"
+    assert payload["businessStatus"] == "valid"
+    assert payload["enrollmentSummary"]["enrollmentCode"] == "ENR-001"
 
 
 def test_worker_can_open_grievance(client: TestClient, worker_headers: dict[str, str], printable_pass_payload: str) -> None:
     verify = client.post("/worker/verify", headers=worker_headers, json={"credentialText": printable_pass_payload})
-    beneficiary_id = verify.json()["beneficiarySummary"]["recordId"]
+    enrollment_id = verify.json()["enrollmentSummary"]["recordId"]
 
     response = client.post(
         "/grievances",
         headers=worker_headers,
         json={
-            "beneficiaryId": beneficiary_id,
+            "programEnrollmentId": enrollment_id,
             "reason": "Card unreadable",
             "details": "QR code could not be scanned at the distribution desk.",
         },
@@ -107,6 +178,8 @@ def test_worker_can_open_grievance(client: TestClient, worker_headers: dict[str,
     payload = response.json()
     assert payload["reason"] == "Card unreadable"
     assert payload["status"] == "open"
+    assert payload["personId"] is not None
+    assert payload["programEnrollmentId"] is not None
 
 
 def test_redemptions_and_grievances_lists_include_new_records(
@@ -115,14 +188,14 @@ def test_redemptions_and_grievances_lists_include_new_records(
     printable_pass_payload: str,
 ) -> None:
     verify = client.post("/worker/verify", headers=worker_headers, json={"credentialText": printable_pass_payload})
-    beneficiary_id = verify.json()["beneficiarySummary"]["recordId"]
+    enrollment_id = verify.json()["enrollmentSummary"]["recordId"]
     verification_reference = verify.json()["verificationReference"]
 
     redeem = client.post(
         "/worker/redeem",
         headers=worker_headers,
         json={
-            "beneficiaryId": beneficiary_id,
+            "programEnrollmentId": enrollment_id,
             "verificationReference": verification_reference,
             "notes": "Delivered during list test.",
         },
@@ -131,7 +204,7 @@ def test_redemptions_and_grievances_lists_include_new_records(
         "/grievances",
         headers=worker_headers,
         json={
-            "beneficiaryId": beneficiary_id,
+            "programEnrollmentId": enrollment_id,
             "reason": "Follow-up needed",
             "details": "Worker requested a post-delivery follow-up.",
         },
@@ -151,5 +224,6 @@ def test_printable_pass_payload_matches_seeded_beneficiary(printable_pass_payloa
     payload = json.loads(printable_pass_payload)
 
     assert payload["recordType"] == "RefuPassPrintablePass"
-    assert payload["beneficiaryId"] == "5860356276"
+    assert payload["subjectId"] == "5860356276"
+    assert payload["enrollmentCode"] == "ENR-001"
     assert payload["programName"] == "Emergency Food Assistance"

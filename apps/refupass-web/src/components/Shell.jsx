@@ -3,7 +3,13 @@ import { ShieldCheck } from "lucide-react";
 import Button from "./Button";
 
 export default function Shell({ session, onLogout, title, subtitle, navItems, children, aside }) {
-  const ngoName = session?.ngoName || "RefuPass NGO";
+  const workspaceLabel = session?.role === "platform_admin" ? "RefuPass Platform" : session?.ngoName || "RefuPass NGO";
+  const headerKicker =
+    session.role === "platform_admin"
+      ? "Platform administration"
+      : session.role === "aid_worker"
+        ? "Field verification"
+        : "NGO administration";
 
   return (
     <div className="app-shell">
@@ -41,7 +47,7 @@ export default function Shell({ session, onLogout, title, subtitle, navItems, ch
               <span>{session.displayName}</span>
             </div>
             <div className="user-chip user-chip-muted">
-              <span>{ngoName}</span>
+              <span>{workspaceLabel}</span>
             </div>
             <p className="eyebrow">Role: {session.role.replace("_", " ")}</p>
           </div>
@@ -58,7 +64,7 @@ export default function Shell({ session, onLogout, title, subtitle, navItems, ch
             {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
           </div>
           <div className="header-aside">
-            <div className="header-kicker">{session.role === "aid_worker" ? "Field verification" : "Administration"}</div>
+            <div className="header-kicker">{headerKicker}</div>
             {aside}
           </div>
         </header>

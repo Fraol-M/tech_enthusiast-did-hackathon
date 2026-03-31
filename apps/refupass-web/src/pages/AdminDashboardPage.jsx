@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ArrowUpRight, Clock3, PackageCheck, Search, UserPlus, Users2 } from "lucide-react";
 import Shell from "../components/Shell";
@@ -6,8 +6,9 @@ import StatCard from "../components/StatCard";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import { describeIdentity, formatSubjectId } from "../utils/identity";
 
-const navItems = [{ to: "/admin", label: "Admin dashboard", end: true, icon: Users2 }];
+const navItems = [{ to: "/admin", label: "NGO dashboard", end: true, icon: Users2 }];
 
 const defaultWorkerForm = {
   displayName: "",
@@ -17,7 +18,7 @@ const defaultWorkerForm = {
 
 export default function AdminDashboardPage({ session, onLogout }) {
   const ngoName = session.ngoName || "RefuPass NGO";
-  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
   const [currentCycle, setCurrentCycle] = useState(null);
   const [redemptions, setRedemptions] = useState([]);
   const [grievances, setGrievances] = useState([]);
@@ -28,19 +29,21 @@ export default function AdminDashboardPage({ session, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [workerForm, setWorkerForm] = useState(defaultWorkerForm);
   const [workerLoading, setWorkerLoading] = useState(false);
+  const popupRef = useRef(null);
+  const popupStateRef = useRef({ sessionToken: null, closureHandled: false });
 
   const loadDashboard = async () => {
     setLoading(true);
     try {
       const [cycle, list, redemptionList, grievanceList, workerList] = await Promise.all([
         api.getCurrentCycle(session.accessToken),
-        api.getBeneficiaries(session.accessToken),
+        api.getProgramEnrollments(session.accessToken),
         api.getRedemptions(session.accessToken),
         api.getGrievances(session.accessToken),
         api.getAidWorkers(session.accessToken),
       ]);
       setCurrentCycle(cycle);
-      setBeneficiaries(list);
+      setEnrollments(list);
       setRedemptions(redemptionList);
       setGrievances(grievanceList);
       setAidWorkers(workerList);
@@ -55,28 +58,125 @@ export default function AdminDashboardPage({ session, onLogout }) {
     loadDashboard();
   }, [session.accessToken]);
 
-  const filteredBeneficiaries = useMemo(() => {
+  useEffect(() => {
+    if (!issuanceSession?.sessionToken) {
+      return undefined;
+    }
+
+    if (popupStateRef.current.sessionToken !== issuanceSession.sessionToken) {
+      popupStateRef.current = { sessionToken: issuanceSession.sessionToken, closureHandled: false };
+    }
+
+    let cancelled = false;
+    const pollIssuance = async () => {
+      try {
+        const current = await api.getIssuanceSession(session.accessToken, issuanceSession.sessionToken);
+        if (cancelled) {
+          return;
+        }
+        setIssuanceSession(current);
+
+        if (
+          popupRef.current &&
+          popupRef.current.closed &&
+          !popupStateRef.current.closureHandled &&
+          ["holder_in_progress", "entitlement_ready"].includes(current.status)
+        ) {
+          popupStateRef.current.closureHandled = true;
+          const closedSession = await api.updateIssuanceSessionStatus(
+            session.accessToken,
+            issuanceSession.sessionToken,
+            "wallet_window_closed",
+          );
+          if (cancelled) {
+            return;
+          }
+          setIssuanceSession(closedSession);
+          setStatus("Wallet window closed. The entitlement remains ready in RefuPass.");
+        }
+
+        if (["credential_verified", "redeemed"].includes(current.status)) {
+          if (popupRef.current && !popupRef.current.closed) {
+            popupRef.current.close();
+          }
+          popupRef.current = null;
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatus(error.message);
+        }
+      }
+    };
+
+    pollIssuance();
+    const intervalId = window.setInterval(pollIssuance, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [issuanceSession?.sessionToken, session.accessToken]);
+
+  const filteredEnrollments = useMemo(() => {
     if (!search.trim()) {
-      return beneficiaries;
+      return enrollments;
     }
     const needle = search.toLowerCase();
-    return beneficiaries.filter((beneficiary) =>
-      [beneficiary.fullName, beneficiary.authSubject, beneficiary.beneficiaryCode]
+    return enrollments.filter((enrollment) =>
+      [
+        enrollment.person.fullName,
+        enrollment.person.authSubject,
+        enrollment.person.personCode,
+        enrollment.enrollmentCode,
+        enrollment.program.name,
+      ]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(needle)),
     );
-  }, [beneficiaries, search]);
+  }, [enrollments, search]);
 
-  const eligibleCount = beneficiaries.filter(
-    (beneficiary) => beneficiary.currentEligibility?.status === "eligible",
+  const peopleCount = new Set(enrollments.map((enrollment) => enrollment.person.id)).size;
+  const eligibleCount = enrollments.filter(
+    (enrollment) => enrollment.currentEligibility?.status === "eligible",
   ).length;
-  const redeemedCount = beneficiaries.filter((beneficiary) => beneficiary.currentRedemption).length;
+  const redeemedCount = enrollments.filter((enrollment) => enrollment.currentRedemption).length;
 
-  const handleIssue = async (beneficiaryId) => {
+  const launchWalletPopup = async (sessionPayload) => {
+    const walletUrl = sessionPayload.externalWalletFlow?.url;
+    if (!walletUrl) {
+      setStatus("Issuance session is ready.");
+      return;
+    }
+    const popup = window.open(
+      walletUrl,
+      "refupass-wallet-issuance",
+      "popup=yes,width=520,height=760",
+    );
+    if (!popup) {
+      setStatus("Allow popups to continue the wallet issuance flow.");
+      return;
+    }
+    popupRef.current = popup;
+    popup.focus();
+    popupStateRef.current = { sessionToken: sessionPayload.sessionToken, closureHandled: false };
+    if (sessionPayload.status !== "holder_in_progress") {
+      const inProgress = await api.updateIssuanceSessionStatus(
+        session.accessToken,
+        sessionPayload.sessionToken,
+        "holder_in_progress",
+      );
+      setIssuanceSession(inProgress);
+    } else {
+      setIssuanceSession(sessionPayload);
+    }
+    setStatus("Continue in the wallet popup. RefuPass will keep tracking this issuance session.");
+  };
+
+  const handleIssue = async (programEnrollmentId) => {
     setStatus("");
     try {
-      const sessionPayload = await api.createIssuanceSession(session.accessToken, beneficiaryId);
+      const sessionPayload = await api.createIssuanceSession(session.accessToken, programEnrollmentId);
       setIssuanceSession(sessionPayload);
+      await launchWalletPopup(sessionPayload);
     } catch (error) {
       setStatus(error.message);
     }
@@ -107,8 +207,8 @@ export default function AdminDashboardPage({ session, onLogout }) {
     <Shell
       session={session}
       onLogout={onLogout}
-      title="Admin"
-      subtitle="Eligibility, issuance, staffing, and delivery."
+      title="NGO admin"
+      subtitle="Shared people, NGO enrollments, issuance, staffing, and delivery."
       navItems={navItems}
       aside={
         <>
@@ -118,23 +218,23 @@ export default function AdminDashboardPage({ session, onLogout }) {
               <strong>{currentCycle.name}</strong>
             </div>
           ) : null}
-          <Button as={Link} to="/admin/beneficiaries/new">
+          <Button as={Link} to="/admin/enrollments/new">
             <UserPlus size={16} strokeWidth={2.2} />
-            Add beneficiary
+            Enroll person
           </Button>
         </>
       }
     >
-      {status ? <div className={`status-banner ${status.includes("added") ? "success" : "error"}`}>{status}</div> : null}
+      {status ? <div className={`status-banner ${status.includes("added") || status.includes("tracking") || status.includes("ready") || status.includes("closed") || status.includes("verified") ? "success" : "error"}`}>{status}</div> : null}
 
       <div className="stats-grid">
         <StatCard label="Eligible" value={eligibleCount} icon={Users2} />
         <StatCard label="Redeemed" value={redeemedCount} icon={PackageCheck} />
         <StatCard label="Grievances" value={grievances.length} icon={AlertTriangle} />
         <StatCard
-          label="Beneficiaries"
-          value={beneficiaries.length}
-          hint={loading ? "Loading" : ngoName}
+          label="Enrollments"
+          value={enrollments.length}
+          hint={loading ? "Loading" : `${peopleCount} shared people`}
           icon={Clock3}
         />
       </div>
@@ -144,18 +244,23 @@ export default function AdminDashboardPage({ session, onLogout }) {
           <div className="session-panel-copy">
             <p className="eyebrow">Latest issuance</p>
             <h3>{issuanceSession.credentialPreview.fullName}</h3>
+            <p className="panel-copy">Entitlement prepared in RefuPass for the verified shared person.</p>
           </div>
           <div className="issuance-actions">
-            <Button as="a" href={issuanceSession.launchUrl} target="_blank" rel="noreferrer">
-              Open Inji Web
-              <ArrowUpRight size={16} strokeWidth={2.2} />
-            </Button>
+            {issuanceSession.externalWalletFlow ? (
+              <Button as="a" href={issuanceSession.externalWalletFlow.url} target="_blank" rel="noreferrer" variant="secondary">
+                {issuanceSession.externalWalletFlow.label}
+                <ArrowUpRight size={16} strokeWidth={2.2} />
+              </Button>
+            ) : null}
             <p className="code-chip">{issuanceSession.credentialConfigurationId}</p>
           </div>
           <div className="detail-grid">
             <div>
-              <span>Beneficiary</span>
-              <strong>{issuanceSession.credentialPreview.beneficiaryId}</strong>
+              <span>Person</span>
+              <strong title={issuanceSession.credentialPreview.subjectId}>
+                {formatSubjectId(issuanceSession.credentialPreview.subjectId)}
+              </strong>
             </div>
             <div>
               <span>Household</span>
@@ -169,64 +274,91 @@ export default function AdminDashboardPage({ session, onLogout }) {
               <span>Ration tier</span>
               <strong>{issuanceSession.credentialPreview.rationTier}</strong>
             </div>
+            <div>
+              <span>Flow</span>
+              <strong>{issuanceSession.flowType.replaceAll("_", " ")}</strong>
+            </div>
+            <div>
+              <span>Session status</span>
+              <strong>{issuanceSession.status.replaceAll("_", " ")}</strong>
+            </div>
           </div>
+          {issuanceSession.externalWalletFlow ? (
+            <div className="card-actions">
+              <Button type="button" onClick={() => launchWalletPopup(issuanceSession)} variant="secondary">
+                {issuanceSession.externalWalletFlow.label}
+                <ArrowUpRight size={16} strokeWidth={2.2} />
+              </Button>
+              <p className="panel-copy">{issuanceSession.externalWalletFlow.note}</p>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
       <section className="panel-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Beneficiaries</p>
-            <h3>Records</h3>
+            <p className="eyebrow">People and enrollments</p>
+            <h3>Current NGO roster</h3>
           </div>
           <div className="search-wrap">
             <Search size={16} strokeWidth={2.2} />
             <input
               className="search-input"
-              placeholder="Search by name, auth subject, or beneficiary code"
+              placeholder="Search by name, subject, person code, or enrollment"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
         </div>
         <div className="beneficiary-grid">
-          {filteredBeneficiaries.map((beneficiary) => (
-            <article key={beneficiary.id} className="beneficiary-card">
+          {filteredEnrollments.map((enrollment) => (
+            <article key={enrollment.id} className="beneficiary-card">
               <div className="card-header-row">
                 <div>
-                  <h4>{beneficiary.fullName}</h4>
-                  <p>{beneficiary.beneficiaryCode}</p>
+                  <h4>{enrollment.person.fullName}</h4>
+                  <p>{[enrollment.person.personCode, enrollment.enrollmentCode].filter(Boolean).join(" • ")}</p>
                 </div>
-                <Badge tone={beneficiary.currentEligibility?.status || "pending"}>
-                  {beneficiary.currentEligibility?.status || "pending"}
+                <Badge tone={enrollment.currentEligibility?.status || "pending"}>
+                  {enrollment.currentEligibility?.status || "pending"}
                 </Badge>
               </div>
               <dl className="card-facts">
                 <div>
-                  <dt>Auth subject</dt>
-                  <dd>{beneficiary.authSubject}</dd>
+                  <dt>Person code</dt>
+                  <dd>{enrollment.person.personCode}</dd>
                 </div>
                 <div>
-                  <dt>Household</dt>
-                  <dd>{beneficiary.household.householdCode}</dd>
+                  <dt>Enrollment</dt>
+                  <dd>{enrollment.enrollmentCode}</dd>
+                </div>
+                <div>
+                  <dt>Subject</dt>
+                  <dd title={enrollment.person.authSubject || undefined}>
+                    {enrollment.person.authSubject ? `${describeIdentity(enrollment.person)} • ${formatSubjectId(enrollment.person.authSubject)}` : "Not linked"}
+                  </dd>
                 </div>
                 <div>
                   <dt>Site</dt>
-                  <dd>{beneficiary.distributionSite}</dd>
+                  <dd>{enrollment.distributionSite}</dd>
                 </div>
                 <div>
                   <dt>Ration</dt>
-                  <dd>{beneficiary.rationTier}</dd>
+                  <dd>{enrollment.rationTier}</dd>
+                </div>
+                <div>
+                  <dt>Program</dt>
+                  <dd>{enrollment.program.name}</dd>
                 </div>
               </dl>
               <div className="card-actions">
-                <Button as={Link} variant="secondary" to={`/admin/beneficiaries/${beneficiary.id}`}>
-                  Open record
+                <Button as={Link} variant="secondary" to={`/admin/enrollments/${enrollment.id}`}>
+                  Open profile
                 </Button>
                 <Button
                   type="button"
-                  disabled={beneficiary.currentEligibility?.status !== "eligible"}
-                  onClick={() => handleIssue(beneficiary.id)}
+                  disabled={enrollment.currentEligibility?.status !== "eligible"}
+                  onClick={() => handleIssue(enrollment.id)}
                 >
                   Issue now
                 </Button>

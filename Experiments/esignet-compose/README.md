@@ -43,13 +43,18 @@ This is the docker compose setup to run esignet UI and esignet-service with mock
 
 1. Start the stack:
    `docker compose up -d`
-2. Start the local callback listener in a separate terminal:
-   `powershell -ExecutionPolicy Bypass -File .\start-callback-server.ps1`
-3. Generate or refresh the demo client and mock beneficiary:
+2. Generate or refresh the demo client and mock personas:
    `powershell -ExecutionPolicy Bypass -File .\setup-demo-flow.ps1`
-4. Open the `authorizeUrl` printed by the script.
-5. Sign in with the mock beneficiary:
-   `individualId`: `5555444433`
+3. Open the `authorizeUrl` printed by the script when you want to test a direct browser flow.
+4. Sign in with one of the mock personas:
+   `Amina Hassan`: `5860356276`
+   `Sami Bekele`: `5555444433`
+   `Nura Ali`: `7777888899`
    `OTP`: `111111`
 
-The helper script also writes the last generated values to `last-demo-flow.json`, including the authorize URL and PKCE verifier.
+Persona usage:
+- `Amina Hassan` matches the seeded RefuPass person used by the current Inji issuance demo.
+- `Sami Bekele` matches the second seeded RefuPass shared person.
+- `Nura Ali` is intentionally not seeded in RefuPass, so you can register her through the `Verify with eSignet` UI in RefuPass Web.
+
+The helper script also writes the last generated values to `last-demo-flow.json`, including the authorize URL, PKCE verifier, and all available demo personas.

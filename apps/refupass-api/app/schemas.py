@@ -29,7 +29,7 @@ class LoginResponse(ApiModel):
     token_type: str = "bearer"
     role: str
     display_name: str
-    ngo_name: str
+    ngo_name: str | None = None
 
 
 class NgoSummary(ApiModel):
@@ -53,6 +53,46 @@ class HouseholdSummary(ApiModel):
     settlement: str
 
 
+class PersonSummary(ApiModel):
+    id: int
+    person_code: str
+    auth_subject: str | None = None
+    full_name: str
+    phone: str | None = None
+    gender: str | None = None
+    identity_status: str
+    identity_provider: str | None = None
+    verified_at: datetime | None = None
+    household: HouseholdSummary | None = None
+
+
+class PersonDetail(PersonSummary):
+    enrollment_count: int = 0
+
+
+class ProgramSummary(ApiModel):
+    id: int
+    name: str
+    assistance_type: str
+    default_distribution_site: str | None = None
+    default_ration_tier: str | None = None
+    is_active: bool
+    ngo: NgoSummary
+
+
+class ProgramEnrollmentSummary(ApiModel):
+    id: int
+    enrollment_code: str
+    status: str
+    distribution_site: str
+    ration_tier: str
+    person: PersonSummary
+    program: ProgramSummary
+    current_eligibility: "EligibilitySnapshot | None" = None
+    current_redemption: "RedemptionResponse | None" = None
+    created_at: datetime
+
+
 class EligibilitySnapshot(ApiModel):
     id: int
     status: str
@@ -63,7 +103,8 @@ class EligibilitySnapshot(ApiModel):
 
 class RedemptionResponse(ApiModel):
     id: int
-    beneficiary_id: int
+    program_enrollment_id: int
+    entitlement_id: int
     aid_cycle_id: int
     worker_username: str
     verification_reference: str
@@ -74,7 +115,8 @@ class RedemptionResponse(ApiModel):
 
 class GrievanceResponse(ApiModel):
     id: int
-    beneficiary_id: int
+    person_id: int
+    program_enrollment_id: int
     aid_cycle_id: int
     created_by: str
     reason: str
@@ -84,39 +126,15 @@ class GrievanceResponse(ApiModel):
     created_at: datetime
 
 
-class BeneficiarySummary(ApiModel):
-    id: int
-    beneficiary_code: str
-    auth_subject: str
-    full_name: str
-    phone: str
-    gender: str
-    identity_status: str
-    identity_provider: str | None = None
-    verified_at: datetime | None = None
-    program_name: str
-    distribution_site: str
-    ration_tier: str
-    ngo: NgoSummary
-    household: HouseholdSummary
-    current_eligibility: EligibilitySnapshot | None = None
-    current_redemption: RedemptionResponse | None = None
-
-
-class BeneficiaryDetail(BeneficiarySummary):
+class ProgramEnrollmentDetail(ProgramEnrollmentSummary):
     redemptions: list[RedemptionResponse] = Field(default_factory=list)
     grievances: list[GrievanceResponse] = Field(default_factory=list)
 
 
-class BeneficiaryCreate(ApiModel):
-    beneficiary_code: str
-    auth_subject: str
+class IdentityVerificationStartRequest(ApiModel):
     full_name: str
-    phone: str
-    gender: str
-    program_name: str
-    distribution_site: str
-    ration_tier: str
+    phone: str | None = None
+    gender: str | None = None
     household_code: str
     family_size: int
     primary_contact_name: str
@@ -130,10 +148,45 @@ class AdminRegisterRequest(ApiModel):
     password: str
 
 
+class PlatformNgoSummary(ApiModel):
+    id: int
+    name: str
+    admin_display_name: str | None = None
+    admin_username: str | None = None
+    aid_worker_count: int = 0
+    program_count: int = 0
+    enrollment_count: int = 0
+
+
+class IdentityVerificationSessionResponse(ApiModel):
+    session_token: str
+    status: str
+    provider: str
+    authorize_url: str
+
+
+class IdentityVerificationSessionStatus(ApiModel):
+    session_token: str
+    status: str
+    provider: str
+    verified_subject: str | None = None
+    error_message: str | None = None
+    person: PersonDetail | None = None
+
+
 class AidWorkerCreate(ApiModel):
     display_name: str
     username: str
     password: str
+
+
+class ProgramEnrollmentCreate(ApiModel):
+    person_id: int
+    program_name: str
+    assistance_type: str = "food"
+    distribution_site: str
+    ration_tier: str
+    notes: str | None = None
 
 
 class StaffUserResponse(ApiModel):
@@ -152,7 +205,8 @@ class EligibilityUpdate(ApiModel):
 
 
 class PrintablePass(ApiModel):
-    beneficiary_code: str
+    enrollment_code: str
+    person_code: str
     full_name: str
     program_name: str
     aid_cycle: str
@@ -164,7 +218,9 @@ class PrintablePass(ApiModel):
 
 
 class CredentialPreview(ApiModel):
-    beneficiary_id: str
+    subject_id: str
+    person_code: str
+    enrollment_code: str
     household_id: str
     full_name: str
     program_name: str
@@ -177,31 +233,45 @@ class CredentialPreview(ApiModel):
     valid_until: date
 
 
+class ExternalWalletFlow(ApiModel):
+    mode: str
+    label: str
+    url: str
+    requires_identity_reauthentication: bool
+    note: str
+
+
 class IssuanceSessionRequest(ApiModel):
-    beneficiary_id: int
+    program_enrollment_id: int
+
+
+class IssuanceSessionStatusUpdate(ApiModel):
+    status: str
 
 
 class IssuanceSessionResponse(ApiModel):
     session_token: str
     issuer_id: str
     credential_configuration_id: str
-    launch_url: str
     status: str
+    flow_type: str
     instructions: list[str]
     credential_preview: CredentialPreview
-    printable_pass: PrintablePass
+    external_wallet_flow: ExternalWalletFlow | None = None
 
 
 class WorkerVerifyRequest(ApiModel):
     credential: dict[str, Any] | None = None
     credential_text: str | None = None
-    beneficiary_id: int | None = None
+    credential_metadata: dict[str, Any] | None = None
+    program_enrollment_id: int | None = None
 
 
-class WorkerBeneficiarySummary(ApiModel):
+class WorkerEnrollmentSummary(ApiModel):
     record_id: int
-    beneficiary_code: str
-    beneficiary_id: str
+    enrollment_code: str
+    person_code: str
+    subject_id: str
     household_id: str
     full_name: str
     family_size: int
@@ -213,7 +283,7 @@ class WorkerVerifyResponse(ApiModel):
     verification_mode: str
     cryptographic_status: str
     business_status: str
-    beneficiary_summary: WorkerBeneficiarySummary | None = None
+    enrollment_summary: WorkerEnrollmentSummary | None = None
     aid_cycle: str | None = None
     distribution_site: str | None = None
     can_redeem: bool
@@ -222,13 +292,13 @@ class WorkerVerifyResponse(ApiModel):
 
 
 class RedeemRequest(ApiModel):
-    beneficiary_id: int
+    program_enrollment_id: int
     verification_reference: str
     notes: str | None = None
 
 
 class GrievanceCreate(ApiModel):
-    beneficiary_id: int
+    program_enrollment_id: int
     reason: str
     details: str
     redemption_id: int | None = None

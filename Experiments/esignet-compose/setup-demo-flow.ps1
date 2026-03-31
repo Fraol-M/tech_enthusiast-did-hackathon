@@ -4,7 +4,7 @@ param(
     [string]$MockIdentityUrl = "http://localhost:8082",
     [string]$ClientId = "",
     [string]$RedirectUri = "http://localhost:5555/callback",
-    [string]$IndividualId = "5555444433"
+    [string]$IndividualId = "7777888899"
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,6 +90,129 @@ function Test-MockIdentityExists {
     return ($null -ne $result.response -and -not $result.errors)
 }
 
+function Get-DemoPersonas {
+    @(
+        [ordered]@{
+            individualId = "5860356276"
+            pin = "1234"
+            email = "amina.demo@example.com"
+            phone = "+251911223344"
+            fullName = "Amina Hassan"
+            nickName = "Amina"
+            givenName = "Amina"
+            middleName = "K"
+            familyName = "Hassan"
+            gender = "Female"
+            dateOfBirth = "1996/04/03"
+            streetAddress = "Kebribeyah Camp"
+            locality = "Jijiga"
+            region = "Somali"
+            postalCode = "1000"
+            country = "Ethiopia"
+            password = "Passw0rd!"
+            preferredLang = "eng"
+            locale = "en"
+            zoneInfo = "EAT"
+            usage = "Seeded in RefuPass and used by the current Inji issuance demo."
+        }
+        [ordered]@{
+            individualId = "5555444433"
+            pin = "1234"
+            email = "sami.demo@example.com"
+            phone = "+251911334455"
+            fullName = "Sami Bekele"
+            nickName = "Sami"
+            givenName = "Sami"
+            middleName = "T"
+            familyName = "Bekele"
+            gender = "Male"
+            dateOfBirth = "1994/09/12"
+            streetAddress = "Jijiga Transit Site"
+            locality = "Jijiga"
+            region = "Somali"
+            postalCode = "1000"
+            country = "Ethiopia"
+            password = "Passw0rd!"
+            preferredLang = "eng"
+            locale = "en"
+            zoneInfo = "EAT"
+            usage = "Seeded in RefuPass as the second shared person."
+        }
+        [ordered]@{
+            individualId = "7777888899"
+            pin = "1234"
+            email = "nura.demo@example.com"
+            phone = "+251900123456"
+            fullName = "Nura Ali"
+            nickName = "Nura"
+            givenName = "Nura"
+            middleName = "M"
+            familyName = "Ali"
+            gender = "Female"
+            dateOfBirth = "1998/07/21"
+            streetAddress = "Kebribeyah Camp"
+            locality = "Jijiga"
+            region = "Somali"
+            postalCode = "1000"
+            country = "Ethiopia"
+            password = "Passw0rd!"
+            preferredLang = "eng"
+            locale = "en"
+            zoneInfo = "EAT"
+            usage = "Not seeded in RefuPass. Use this one to test Verify with eSignet in the web UI."
+        }
+    )
+}
+
+function Ensure-MockIdentity {
+    param(
+        [string]$MockIdentityUrl,
+        [System.Collections.IDictionary]$Persona
+    )
+
+    if (Test-MockIdentityExists -MockIdentityUrl $MockIdentityUrl -IndividualId $Persona.individualId) {
+        return
+    }
+
+    $userBody = @{
+        requestTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        request = @{
+            individualId = $Persona.individualId
+            pin = $Persona.pin
+            email = $Persona.email
+            phone = $Persona.phone
+            fullName = @(@{ language = "eng"; value = $Persona.fullName })
+            nickName = @(@{ language = "eng"; value = $Persona.nickName })
+            preferredUsername = @(@{ language = "eng"; value = $Persona.fullName })
+            givenName = @(@{ language = "eng"; value = $Persona.givenName })
+            middleName = @(@{ language = "eng"; value = $Persona.middleName })
+            familyName = @(@{ language = "eng"; value = $Persona.familyName })
+            gender = @(@{ language = "eng"; value = $Persona.gender })
+            dateOfBirth = $Persona.dateOfBirth
+            streetAddress = @(@{ language = "eng"; value = $Persona.streetAddress })
+            locality = @(@{ language = "eng"; value = $Persona.locality })
+            password = $Persona.password
+            preferredLang = $Persona.preferredLang
+            locale = $Persona.locale
+            region = @(@{ language = "eng"; value = $Persona.region })
+            zoneInfo = $Persona.zoneInfo
+            postalCode = $Persona.postalCode
+            country = @(@{ language = "eng"; value = $Persona.country })
+            encodedPhoto = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+        }
+    }
+
+    $null = Invoke-RestMethod `
+        -Method POST `
+        -Uri "$MockIdentityUrl/v1/mock-identity-system/identity" `
+        -ContentType "application/json" `
+        -Body ($userBody | ConvertTo-Json -Depth 20 -Compress)
+
+    if (-not (Test-MockIdentityExists -MockIdentityUrl $MockIdentityUrl -IndividualId $Persona.individualId)) {
+        throw "Mock identity creation did not produce a usable identity for '$($Persona.individualId)'."
+    }
+}
+
 $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $health = Invoke-RestMethod -Method GET -Uri "$BaseUrl/v1/esignet/actuator/health" -WebSession $session
 if ($health.status -ne "UP") {
@@ -105,44 +228,14 @@ $headers = @{
     "X-XSRF-TOKEN" = $csrf.token
 }
 
-if (-not (Test-MockIdentityExists -MockIdentityUrl $MockIdentityUrl -IndividualId $IndividualId)) {
-    $userBody = @{
-        requestTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-        request = @{
-            individualId = $IndividualId
-            pin = "1234"
-            email = "amina.demo@example.com"
-            phone = "+251911223344"
-            fullName = @(@{ language = "eng"; value = "Amina Hassan" })
-            nickName = @(@{ language = "eng"; value = "Amina" })
-            preferredUsername = @(@{ language = "eng"; value = "Amina Hassan" })
-            givenName = @(@{ language = "eng"; value = "Amina" })
-            middleName = @(@{ language = "eng"; value = "K" })
-            familyName = @(@{ language = "eng"; value = "Hassan" })
-            gender = @(@{ language = "eng"; value = "Female" })
-            dateOfBirth = "1996/04/03"
-            streetAddress = @(@{ language = "eng"; value = "Kebribeyah Camp" })
-            locality = @(@{ language = "eng"; value = "Jijiga" })
-            password = "Passw0rd!"
-            preferredLang = "eng"
-            locale = "en"
-            region = @(@{ language = "eng"; value = "Somali" })
-            zoneInfo = "EAT"
-            postalCode = "1000"
-            country = @(@{ language = "eng"; value = "Ethiopia" })
-            encodedPhoto = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-        }
-    }
+$personas = Get-DemoPersonas
+$selectedPersona = $personas | Where-Object { $_.individualId -eq $IndividualId } | Select-Object -First 1
+if (-not $selectedPersona) {
+    throw "No demo persona is defined for IndividualId '$IndividualId'."
+}
 
-    $null = Invoke-RestMethod `
-        -Method POST `
-        -Uri "$MockIdentityUrl/v1/mock-identity-system/identity" `
-        -ContentType "application/json" `
-        -Body ($userBody | ConvertTo-Json -Depth 20 -Compress)
-
-    if (-not (Test-MockIdentityExists -MockIdentityUrl $MockIdentityUrl -IndividualId $IndividualId)) {
-        throw "Mock identity creation did not produce a usable identity for '$IndividualId'."
-    }
+foreach ($persona in $personas) {
+    Ensure-MockIdentity -MockIdentityUrl $MockIdentityUrl -Persona $persona
 }
 
 $clientReady = $false
@@ -274,10 +367,13 @@ $summary = [ordered]@{
     codeChallenge = $pkce.CodeChallenge
     loginMethod = "OTP"
     mockOtp = "111111"
-    individualId = $IndividualId
-    passwordLogin = "Passw0rd!"
-    phone = "+251911223344"
-    email = "amina.demo@example.com"
+    individualId = $selectedPersona.individualId
+    passwordLogin = $selectedPersona.password
+    phone = $selectedPersona.phone
+    email = $selectedPersona.email
+    fullName = $selectedPersona.fullName
+    usage = $selectedPersona.usage
+    personas = $personas
 }
 
 $summaryPath = Join-Path -Path $PSScriptRoot -ChildPath "last-demo-flow.json"
@@ -295,6 +391,11 @@ Write-Host "The full JSON summary is saved to:" -ForegroundColor Green
 Write-Host $summaryPath -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Use these login details:" -ForegroundColor Green
-Write-Host "  individualId: $IndividualId"
+Write-Host "  individualId: $($selectedPersona.individualId)"
 Write-Host "  OTP: 111111"
+Write-Host ""
+Write-Host "Available demo personas:" -ForegroundColor Green
+foreach ($persona in $personas) {
+    Write-Host "  $($persona.fullName) :: $($persona.individualId) :: $($persona.usage)"
+}
 Write-Host ""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -11,13 +12,22 @@ class InjiVerifyClient:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    async def verify(self, credential: dict[str, Any]) -> dict[str, Any]:
+    async def verify(self, credential: dict[str, Any] | str) -> dict[str, Any]:
         mode = self.settings.inji_verify_mode.lower()
         if mode == "passthrough":
             return await self._passthrough(credential)
         return self._stub(credential)
 
-    def _stub(self, credential: dict[str, Any]) -> dict[str, Any]:
+    def _stub(self, credential: dict[str, Any] | str) -> dict[str, Any]:
+        if isinstance(credential, str):
+            return {
+                "cryptographicStatus": "invalid",
+                "details": {
+                    "mode": "stub",
+                    "error": "Stub mode only supports JSON credential payloads.",
+                },
+            }
+
         proof = credential.get("proof")
         types = credential.get("type") or []
         is_valid = bool(proof) and "VerifiableCredential" in types
@@ -31,36 +41,28 @@ class InjiVerifyClient:
             },
         }
 
-    async def _passthrough(self, credential: dict[str, Any]) -> dict[str, Any]:
-        candidate_payloads = [
-            {"credential": credential},
-            credential,
-            {"verifiableCredential": credential},
-        ]
-
+    async def _passthrough(self, credential: dict[str, Any] | str) -> dict[str, Any]:
+        verifiable_credential = credential if isinstance(credential, str) else json.dumps(credential)
+        request_payload = {
+            "verifiableCredential": verifiable_credential,
+            "includeClaims": True,
+        }
         async with httpx.AsyncClient(timeout=20.0) as client:
-            last_error = None
-            for payload in candidate_payloads:
-                try:
-                    response = await client.post(f"{self.settings.inji_verify_api_url}/vc-verification", json=payload)
-                    if response.is_success:
-                        data = response.json()
-                        if self._is_success_response(data):
-                            return {
-                                "cryptographicStatus": "valid",
-                                "details": {
-                                    "mode": "passthrough",
-                                    "rawResponse": data,
-                                },
-                            }
-                        last_error = {
-                            "status": response.status_code,
-                            "body": data,
-                        }
-                        continue
-                    last_error = {"status": response.status_code, "body": response.text}
-                except httpx.HTTPError as exc:
-                    last_error = {"error": str(exc)}
+            try:
+                response = await client.post(f"{self.settings.inji_verify_api_url}/v2/vc-verification", json=request_payload)
+                data = response.json() if response.content else {}
+                if response.is_success and self._is_success_response(data):
+                    return {
+                        "cryptographicStatus": "valid",
+                        "details": {
+                            "mode": "passthrough",
+                            "claims": data.get("claims", {}),
+                            "rawResponse": data,
+                        },
+                    }
+                last_error = {"status": response.status_code, "body": data if response.content else response.text}
+            except httpx.HTTPError as exc:
+                last_error = {"error": str(exc)}
 
         return {
             "cryptographicStatus": "invalid",
@@ -74,6 +76,8 @@ class InjiVerifyClient:
     @staticmethod
     def _is_success_response(data: Any) -> bool:
         if isinstance(data, dict):
+            if "allChecksSuccessful" in data:
+                return bool(data.get("allChecksSuccessful"))
             for key in ("verificationStatus", "status", "result"):
                 value = data.get(key)
                 if isinstance(value, str):

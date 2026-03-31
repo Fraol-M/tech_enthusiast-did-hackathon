@@ -33,13 +33,15 @@ async function request(path, { token, ...options } = {}) {
 }
 
 export const api = {
-  registerAdmin: (payload) =>
-    request("/auth/register-admin", {
+  login: (payload) =>
+    request("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  login: (payload) =>
-    request("/auth/login", {
+  getPlatformNgos: (token) => request("/platform/ngos", { token }),
+  createPlatformNgo: (token, payload) =>
+    request("/platform/ngos", {
+      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -51,26 +53,44 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getBeneficiaries: (token, search = "") =>
-    request(`/beneficiaries${search ? `?search=${encodeURIComponent(search)}` : ""}`, { token }),
-  getBeneficiary: (token, id) => request(`/beneficiaries/${id}`, { token }),
-  createBeneficiary: (token, payload) =>
-    request("/beneficiaries", {
+  getPeople: (token, search = "") =>
+    request(`/people${search ? `?search=${encodeURIComponent(search)}` : ""}`, { token }),
+  startIdentityVerification: (token, payload) =>
+    request("/platform/identity-verifications", {
       token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  updateEligibility: (token, id, payload) =>
-    request(`/beneficiaries/${id}/eligibility`, {
+  getIdentityVerification: (token, sessionToken) =>
+    request(`/platform/identity-verifications/${sessionToken}`, { token }),
+  getProgramEnrollments: (token, search = "") =>
+    request(`/program-enrollments${search ? `?search=${encodeURIComponent(search)}` : ""}`, { token }),
+  createProgramEnrollment: (token, payload) =>
+    request("/program-enrollments", {
+      token,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getProgramEnrollment: (token, id) => request(`/program-enrollments/${id}`, { token }),
+  updateProgramEnrollmentEligibility: (token, id, payload) =>
+    request(`/program-enrollments/${id}/eligibility`, {
       token,
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  createIssuanceSession: (token, beneficiaryId) =>
+  createIssuanceSession: (token, programEnrollmentId) =>
     request("/issuance-sessions", {
       token,
       method: "POST",
-      body: JSON.stringify({ beneficiaryId }),
+      body: JSON.stringify({ programEnrollmentId }),
+    }),
+  getIssuanceSession: (token, sessionToken) =>
+    request(`/issuance-sessions/${sessionToken}`, { token }),
+  updateIssuanceSessionStatus: (token, sessionToken, status) =>
+    request(`/issuance-sessions/${sessionToken}/status`, {
+      token,
+      method: "PATCH",
+      body: JSON.stringify({ status }),
     }),
   verifyCredential: (token, payload) =>
     request("/worker/verify", {

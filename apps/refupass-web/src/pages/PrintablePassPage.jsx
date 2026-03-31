@@ -11,7 +11,7 @@ const navItems = [{ to: "/admin", label: "Admin dashboard", end: false, icon: Sh
 export default function PrintablePassPage({ session, onLogout }) {
   const { id } = useParams();
   const location = useLocation();
-  const [beneficiary, setBeneficiary] = useState(null);
+  const [enrollment, setEnrollment] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [status, setStatus] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
@@ -19,8 +19,8 @@ export default function PrintablePassPage({ session, onLogout }) {
   useEffect(() => {
     const run = async () => {
       try {
-        const payload = await api.getBeneficiary(session.accessToken, id);
-        setBeneficiary(payload);
+        const payload = await api.getProgramEnrollment(session.accessToken, id);
+        setEnrollment(payload);
       } catch (error) {
         setStatus(error.message);
       }
@@ -32,35 +32,37 @@ export default function PrintablePassPage({ session, onLogout }) {
     if (location.state?.printablePass) {
       return location.state.printablePass;
     }
-    if (!beneficiary?.currentEligibility) {
+    if (!enrollment?.currentEligibility) {
       return null;
     }
     return {
-      beneficiaryCode: beneficiary.beneficiaryCode,
-      fullName: beneficiary.fullName,
-      programName: beneficiary.programName,
+      enrollmentCode: enrollment.enrollmentCode,
+      personCode: enrollment.person.personCode,
+      fullName: enrollment.person.fullName,
+      programName: enrollment.program.name,
       aidCycle: "Current aid cycle",
-      distributionSite: beneficiary.distributionSite,
-      familySize: beneficiary.household.familySize,
-      rationTier: beneficiary.rationTier,
-      validUntil: beneficiary.currentEligibility.validUntil,
+      distributionSite: enrollment.distributionSite,
+      familySize: enrollment.person.household?.familySize ?? 0,
+      rationTier: enrollment.rationTier,
+      validUntil: enrollment.currentEligibility.validUntil,
         qrPayload: JSON.stringify({
           recordType: "RefuPassPrintablePass",
           verificationMode: "printable_pass_qr",
-          beneficiaryId: beneficiary.authSubject,
-          beneficiaryCode: beneficiary.beneficiaryCode,
-          householdId: beneficiary.household.householdCode,
-          fullName: beneficiary.fullName,
-          programName: beneficiary.programName,
+          subjectId: enrollment.person.authSubject,
+          personCode: enrollment.person.personCode,
+          enrollmentCode: enrollment.enrollmentCode,
+          householdId: enrollment.person.household?.householdCode ?? "",
+          fullName: enrollment.person.fullName,
+          programName: enrollment.program.name,
           aidCycle: "Current aid cycle",
-          distributionSite: beneficiary.distributionSite,
-          familySize: beneficiary.household.familySize,
-          rationTier: beneficiary.rationTier,
-          entitlementStatus: beneficiary.currentEligibility.status,
-          validUntil: beneficiary.currentEligibility.validUntil,
+          distributionSite: enrollment.distributionSite,
+          familySize: enrollment.person.household?.familySize ?? 0,
+          rationTier: enrollment.rationTier,
+          entitlementStatus: enrollment.currentEligibility.status,
+          validUntil: enrollment.currentEligibility.validUntil,
         }),
       };
-  }, [beneficiary, location.state]);
+  }, [enrollment, location.state]);
 
   useEffect(() => {
     if (!printablePass?.qrPayload) {
@@ -83,7 +85,7 @@ export default function PrintablePassPage({ session, onLogout }) {
       title="Printable pass"
       subtitle="Paper fallback."
       navItems={navItems}
-      aside={<Button as={Link} variant="secondary" to={`/admin/beneficiaries/${id}`}>Back to record</Button>}
+      aside={<Button as={Link} variant="secondary" to={`/admin/enrollments/${id}`}>Back to record</Button>}
     >
       {status ? <div className="status-banner error">{status}</div> : null}
       {printablePass ? (
@@ -92,7 +94,7 @@ export default function PrintablePassPage({ session, onLogout }) {
             <div>
               <p className="eyebrow">Printable pass</p>
               <h3>{printablePass.fullName}</h3>
-              <p>{printablePass.beneficiaryCode}</p>
+              <p>{printablePass.personCode}</p>
             </div>
             {qrDataUrl ? <img src={qrDataUrl} alt="Printable verification QR" className="qr-image" /> : null}
           </div>
