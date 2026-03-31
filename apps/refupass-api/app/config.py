@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     inji_web_url: str = "http://localhost:3001"
     inji_verify_ui_url: str = "http://localhost:13000"
     demo_beneficiary_subject: str = "5860356276"
+    esignet_ui_url: str = "http://localhost:3000"
+    esignet_api_url: str = "http://localhost:8088"
+    esignet_callback_url: str = "http://127.0.0.1:8000/platform/identity/esignet/callback"
+    esignet_client_name: str = "RefuPass Platform Verification"
+    esignet_client_logo_url: str = "https://example.com/refupass-logo.png"
 
     @property
     def allowed_origins_list(self) -> list[str]:

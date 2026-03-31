@@ -1,11 +1,11 @@
 # RefuPass API
 
-FastAPI backend for the RefuPass food-aid prototype.
+FastAPI backend for the RefuPass platform.
 
 ## What it handles
 
-- local role-based staff login for `admin` and `aid_worker`
-- beneficiary, household, aid-cycle, eligibility, redemption, and grievance state
+- local role-based login for `platform_admin`, `ngo_admin`, and `aid_worker`
+- shared people, households, NGO programs, enrollments, aid cycles, redemptions, and grievances
 - issuance handoff metadata for the existing `Inji Web` holder flow
 - aid-worker verification orchestration with a pluggable `Inji Verify` client
 
@@ -20,11 +20,12 @@ Copy-Item .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
-The app seeds demo users and beneficiaries on first run.
+The app seeds demo users, shared people, and NGO enrollments on first run.
 
 ## Demo credentials
 
 - `admin` / `admin123`
+- `ngoadmin` / `ngo123`
 - `aidworker` / `worker123`
 
 ## Environment
@@ -43,8 +44,6 @@ ALLOWED_ORIGINS=http://localhost:5173,http://localhost:4173
 DEMO_BENEFICIARY_SUBJECT=5860356276
 ```
 
-`DATABASE_URL` defaults to SQLite for local development, but the SQL seed file in [`sql/postgres_init.sql`](./sql/postgres_init.sql) shows the intended Postgres schema for hosted deployment.
-
 ## Tests
 
 Run the backend suite from this folder:
@@ -55,3 +54,20 @@ python -m pytest
 ```
 
 The tests use an isolated temporary SQLite database per test run, so they do not touch your working `refupass.db`.
+
+## Local eSignet demo personas
+
+If you are testing `Verify with eSignet`, run the local helper first:
+
+```powershell
+cd ..\..\Experiments\esignet-compose
+powershell -ExecutionPolicy Bypass -File .\setup-demo-flow.ps1
+```
+
+Available mock identities:
+
+- `Amina Hassan` -> `5860356276`
+- `Sami Bekele` -> `5555444433`
+- `Nura Ali` -> `7777888899`
+
+Use `Nura Ali` in the RefuPass Web platform UI when you want to test adding a new person through eSignet without colliding with the two people already seeded in RefuPass.

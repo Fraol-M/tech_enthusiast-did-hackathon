@@ -1,11 +1,16 @@
 # RefuPass Web
 
-React frontend for the RefuPass prototype.
+React frontend for the RefuPass platform.
 
 ## Surfaces
 
+- `Platform dashboard`
+  - register NGO workspaces
+  - register shared people
+  - review the shared registry
 - `Admin dashboard`
-  - beneficiary search and review
+  - search shared people
+  - create NGO program enrollments
   - eligibility decisions
   - issuance handoff
   - printable fallback pass
