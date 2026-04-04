@@ -52,6 +52,7 @@ from .schemas import (
     PersonDetail,
     PersonSummary,
     PlatformNgoSummary,
+    PrintablePass,
     ProgramEnrollmentCreate,
     ProgramEnrollmentDetail,
     ProgramEnrollmentSummary,
@@ -67,10 +68,11 @@ from .seed import seed_demo_data
 from .services.esignet_verification import ESignetVerificationService
 from .services.issuance import (
     build_credential_preview,
-    build_external_wallet_flow,
     build_issuance_instructions,
+    build_printable_pass,
     build_issuance_payload,
 )
+from .services.pass_tokens import verify_pass_payload
 from .services.verify_client import InjiVerifyClient
 
 
@@ -418,16 +420,25 @@ def serialize_issuance_session(
     eligibility = get_current_eligibility_for_enrollment(db, enrollment.id, aid_cycle.id)
     if not eligibility:
         raise HTTPException(status_code=400, detail="Enrollment does not have an eligibility record for this cycle")
+    printable_pass = build_printable_pass(
+        enrollment,
+        eligibility,
+        aid_cycle,
+        pass_id=issuance_session.session_token,
+    )
 
     return IssuanceSessionResponse(
         session_token=issuance_session.session_token,
         issuer_id=issuance_session.issuer_id,
         credential_configuration_id=issuance_session.credential_configuration_id,
         status=issuance_session.status,
-        flow_type="issuer_managed",
+        flow_type="refupass_native_pass",
         instructions=build_issuance_instructions(),
         credential_preview=build_credential_preview(enrollment, eligibility, aid_cycle),
-        external_wallet_flow=build_external_wallet_flow(settings),
+        pass_id=printable_pass.pass_id,
+        printable_pass=printable_pass,
+        pass_download_url=f"/issuance-sessions/{issuance_session.session_token}/pass",
+        external_wallet_flow=None,
     )
 
 
@@ -514,7 +525,8 @@ def update_latest_issuance_session_status(
         )
         .order_by(IssuanceSession.created_at.desc())
     )
-    if not issuance_session or issuance_session.status == status_value:
+    terminal_statuses = {"redeemed"}
+    if not issuance_session or issuance_session.status == status_value or issuance_session.status in terminal_statuses:
         return False
     issuance_session.status = status_value
     return True
@@ -550,6 +562,9 @@ def parse_verification_payload(request: WorkerVerifyRequest) -> tuple[dict[str, 
     if is_verifiable_credential(payload):
         return payload, "credential_json"
 
+    if payload.get("recordType") == "RefuPassPrintablePass" and payload.get("signature"):
+        return payload, "refupass_pass_qr"
+
     if (payload.get("beneficiaryId") or payload.get("subjectId") or payload.get("enrollmentCode")) and payload.get("recordType") == "RefuPassPrintablePass":
         return payload, "printable_pass_qr"
 
@@ -558,7 +573,7 @@ def parse_verification_payload(request: WorkerVerifyRequest) -> tuple[dict[str, 
 
     raise HTTPException(
         status_code=400,
-        detail="Verification payload must be Verifiable Credential JSON, a credential QR string, or a RefuPass printable-pass QR payload",
+        detail="Verification payload must be Verifiable Credential JSON, a credential QR string, or a RefuPass pass QR payload",
     )
 
 
@@ -675,7 +690,7 @@ def determine_business_status(
             expiration = date.fromisoformat(expiration_text.replace("Z", "").split("T")[0])
         except ValueError:
             expiration = eligibility.valid_until
-        if expiration < date.today():
+        if expiration < eligibility.valid_from:
             return "expired", False
 
     if redemption:
@@ -1145,6 +1160,25 @@ def get_issuance_session(
     return serialize_issuance_session(db, issuance_session, enrollment, aid_cycle)
 
 
+@app.get("/issuance-sessions/{session_token}/pass", response_model=PrintablePass)
+def get_issuance_session_pass(
+    session_token: str,
+    user: User = Depends(require_role("ngo_admin")),
+    db: Session = Depends(get_db),
+) -> PrintablePass:
+    issuance_session, enrollment = get_issuance_session_for_ngo_or_404(db, session_token, user.ngo_id)
+    aid_cycle = issuance_session.aid_cycle or get_current_cycle_record(db)
+    eligibility = get_current_eligibility_for_enrollment(db, enrollment.id, aid_cycle.id)
+    if not eligibility:
+        raise HTTPException(status_code=400, detail="Enrollment does not have an eligibility record for this cycle")
+    return build_printable_pass(
+        enrollment,
+        eligibility,
+        aid_cycle,
+        pass_id=issuance_session.session_token,
+    )
+
+
 @app.patch("/issuance-sessions/{session_token}/status", response_model=IssuanceSessionResponse)
 def update_issuance_session_status(
     session_token: str,
@@ -1152,13 +1186,13 @@ def update_issuance_session_status(
     user: User = Depends(require_role("ngo_admin")),
     db: Session = Depends(get_db),
 ) -> IssuanceSessionResponse:
-    allowed_statuses = {"holder_in_progress", "wallet_window_closed"}
+    allowed_statuses = {"pass_downloaded"}
     if payload.status not in allowed_statuses:
         raise HTTPException(status_code=400, detail="Unsupported issuance session status")
 
     issuance_session, enrollment = get_issuance_session_for_ngo_or_404(db, session_token, user.ngo_id)
-    if issuance_session.status not in {"entitlement_ready", "holder_in_progress", "wallet_window_closed"}:
-        raise HTTPException(status_code=400, detail="Issuance session can no longer be updated from the admin popup flow")
+    if issuance_session.status not in {"pass_ready", "pass_downloaded"}:
+        raise HTTPException(status_code=400, detail="Issuance session can no longer be updated from the RefuPass pass flow")
 
     issuance_session.status = payload.status
     db.commit()
@@ -1176,6 +1210,16 @@ async def worker_verify(
     verification_payload, verification_mode = parse_verification_payload(payload)
     if verification_mode in {"credential_json", "credential_string"}:
         verification = await verify_client.verify(verification_payload)
+    elif verification_mode == "refupass_pass_qr":
+        signature_valid = verify_pass_payload(verification_payload, settings.pass_signing_secret)
+        verification = {
+            "cryptographicStatus": "valid" if signature_valid else "invalid",
+            "details": {
+                "mode": verification_mode,
+                "signatureVerified": signature_valid,
+                "passId": verification_payload.get("passId"),
+            },
+        }
     else:
         verification = {
             "cryptographicStatus": "not_checked",
@@ -1208,7 +1252,7 @@ async def worker_verify(
         enrollment
         and aid_cycle
         and verification["cryptographicStatus"] == "valid"
-        and verification_mode in {"credential_json", "credential_string"}
+        and verification_mode in {"credential_json", "credential_string", "refupass_pass_qr"}
     ):
         issuance_status_updated = update_latest_issuance_session_status(
             db,
@@ -1225,7 +1269,7 @@ async def worker_verify(
             record_id=enrollment.id,
             enrollment_code=enrollment.enrollment_code,
             person_code=enrollment.person.person_code,
-            subject_id=enrollment.person.auth_subject or "",
+            subject_id=enrollment.person.person_code,
             household_id=enrollment.person.household.household_code if enrollment.person.household else "",
             full_name=enrollment.person.full_name,
             family_size=enrollment.person.household.family_size if enrollment.person.household else 0,
@@ -1275,8 +1319,8 @@ def worker_redeem(
         db,
         enrollment=enrollment,
         aid_cycle=aid_cycle,
-        issuer_id="RefuPassFoodAid",
-        credential_configuration_id="RefuPassFoodAidCredential",
+        issuer_id="RefuPass",
+        credential_configuration_id="RefuPassPrintablePass",
     )
     redemption = Redemption(
         program_enrollment_id=enrollment.id,

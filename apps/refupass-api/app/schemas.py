@@ -205,6 +205,7 @@ class EligibilityUpdate(ApiModel):
 
 
 class PrintablePass(ApiModel):
+    pass_id: str
     enrollment_code: str
     person_code: str
     full_name: str
@@ -257,6 +258,9 @@ class IssuanceSessionResponse(ApiModel):
     flow_type: str
     instructions: list[str]
     credential_preview: CredentialPreview
+    pass_id: str
+    printable_pass: PrintablePass
+    pass_download_url: str
     external_wallet_flow: ExternalWalletFlow | None = None
 
 

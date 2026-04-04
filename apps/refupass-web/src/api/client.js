@@ -86,6 +86,8 @@ export const api = {
     }),
   getIssuanceSession: (token, sessionToken) =>
     request(`/issuance-sessions/${sessionToken}`, { token }),
+  getIssuancePass: (token, sessionToken) =>
+    request(`/issuance-sessions/${sessionToken}/pass`, { token }),
   updateIssuanceSessionStatus: (token, sessionToken, status) =>
     request(`/issuance-sessions/${sessionToken}/status`, {
       token,

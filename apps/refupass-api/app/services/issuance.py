@@ -3,16 +3,18 @@ from __future__ import annotations
 import json
 import uuid
 
+from ..config import get_settings
 from ..config import Settings
 from ..models import AidCycle, Eligibility, ProgramEnrollment
 from ..schemas import CredentialPreview, ExternalWalletFlow, PrintablePass
+from .pass_tokens import attach_signature
 
 
 def build_issuance_instructions() -> list[str]:
     return [
-        "RefuPass has prepared this entitlement for the already-verified shared person.",
-        "NGO staff can now coordinate holder delivery without repeating RefuPass enrollment or eligibility checks.",
-        "The external wallet path below is a local-stack compatibility flow and may still ask the holder to authenticate again.",
+        "RefuPass has issued a pass for the already-verified eligible person.",
+        "Open the pass, then print it or save it as a PDF for the beneficiary.",
+        "Aid workers will verify and redeem this pass directly in RefuPass.",
     ]
 
 
@@ -31,7 +33,7 @@ def build_credential_preview(enrollment: ProgramEnrollment, eligibility: Eligibi
     household = person.household
     program = enrollment.program
     return CredentialPreview(
-        subject_id=person.auth_subject or "",
+        subject_id=person.person_code,
         person_code=person.person_code,
         enrollment_code=enrollment.enrollment_code,
         household_id=household.household_code if household else "",
@@ -47,15 +49,24 @@ def build_credential_preview(enrollment: ProgramEnrollment, eligibility: Eligibi
     )
 
 
-def build_printable_pass(enrollment: ProgramEnrollment, eligibility: Eligibility, aid_cycle: AidCycle) -> PrintablePass:
+def build_printable_pass(
+    enrollment: ProgramEnrollment,
+    eligibility: Eligibility,
+    aid_cycle: AidCycle,
+    *,
+    pass_id: str | None = None,
+) -> PrintablePass:
+    settings = get_settings()
     person = enrollment.person
     household = person.household
     program = enrollment.program
-    qr_payload = json.dumps(
+    effective_pass_id = pass_id or enrollment.enrollment_code
+    qr_payload_data = attach_signature(
         {
             "recordType": "RefuPassPrintablePass",
-            "verificationMode": "printable_pass_qr",
-            "subjectId": person.auth_subject,
+            "verificationMode": "refupass_pass_qr",
+            "passId": effective_pass_id,
+            "subjectId": person.person_code,
             "personCode": person.person_code,
             "enrollmentCode": enrollment.enrollment_code,
             "householdId": household.household_code if household else "",
@@ -66,10 +77,14 @@ def build_printable_pass(enrollment: ProgramEnrollment, eligibility: Eligibility
             "familySize": household.family_size if household else 0,
             "rationTier": enrollment.ration_tier,
             "entitlementStatus": eligibility.status,
+            "validFrom": eligibility.valid_from.isoformat(),
             "validUntil": eligibility.valid_until.isoformat(),
-        }
+        },
+        settings.pass_signing_secret,
     )
+    qr_payload = json.dumps(qr_payload_data, separators=(",", ":"), sort_keys=True)
     return PrintablePass(
+        pass_id=effective_pass_id,
         enrollment_code=enrollment.enrollment_code,
         person_code=person.person_code,
         full_name=person.full_name,
@@ -93,29 +108,17 @@ def build_issuance_payload(
     household = person.household
     program = enrollment.program
     session_token = str(uuid.uuid4())
-    qr_payload = {
-        "subjectId": person.auth_subject,
-        "personCode": person.person_code,
-        "enrollmentCode": enrollment.enrollment_code,
-        "householdId": household.household_code if household else "",
-        "programName": program.name,
-        "aidCycle": aid_cycle.name,
-        "distributionSite": enrollment.distribution_site,
-        "familySize": household.family_size if household else 0,
-        "rationTier": enrollment.ration_tier,
-        "entitlementStatus": eligibility.status,
-        "validFrom": eligibility.valid_from.isoformat(),
-        "validUntil": eligibility.valid_until.isoformat(),
-        "sessionToken": session_token,
-    }
+    printable_pass = build_printable_pass(enrollment, eligibility, aid_cycle, pass_id=session_token)
+    qr_payload = json.loads(printable_pass.qr_payload)
     return session_token, {
-        "launch_url": settings.inji_web_url,
-        "issuer_id": "RefuPassFoodAid",
-        "credential_configuration_id": "RefuPassFoodAidCredential",
-        "status": "entitlement_ready",
-        "flow_type": "issuer_managed",
+        "launch_url": "",
+        "issuer_id": "RefuPass",
+        "credential_configuration_id": "RefuPassPrintablePass",
+        "status": "pass_ready",
+        "flow_type": "refupass_native_pass",
         "instructions": build_issuance_instructions(),
         "credential_preview": build_credential_preview(enrollment, eligibility, aid_cycle),
-        "external_wallet_flow": build_external_wallet_flow(settings),
+        "printable_pass": printable_pass,
+        "pass_download_url": f"/issuance-sessions/{session_token}/pass",
         "qr_payload": qr_payload,
     }
