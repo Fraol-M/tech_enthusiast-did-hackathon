@@ -107,10 +107,10 @@ export default function WorkerPage({ session, onLogout }) {
       <div className="split-grid">
         <section className="panel-card">
           <p className="eyebrow">Input</p>
-          <h3>Pass or VC</h3>
+          <h3>RefuPass pass or VC</h3>
           <textarea
             className="credential-textarea"
-            placeholder="Paste VC JSON or upload PDF/JSON/TXT"
+            placeholder="Paste a RefuPass QR payload or upload PDF/PNG/JSON/TXT"
             value={credentialText}
             onChange={(event) => {
               setCredentialText(event.target.value);
@@ -120,12 +120,12 @@ export default function WorkerPage({ session, onLogout }) {
           <div className="card-actions">
             <label className="button button-secondary button-md file-button">
               <Upload size={16} strokeWidth={2.2} />
-              Upload PDF/JSON/TXT
-              <input type="file" accept="application/pdf,application/json,text/plain,.pdf,.json,.txt" onChange={handleFileUpload} hidden />
+              Upload PDF/PNG/JSON/TXT
+              <input type="file" accept="application/pdf,application/json,text/plain,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp,.json,.txt" onChange={handleFileUpload} hidden />
             </label>
             <Button type="button" onClick={handleVerify}>
               <QrCode size={16} strokeWidth={2.2} />
-              Run verification
+              Verify pass
             </Button>
           </div>
           {inputStatus ? <p className="panel-copy">{inputStatus}</p> : null}
@@ -165,8 +165,12 @@ export default function WorkerPage({ session, onLogout }) {
                   </p>
                 </div>
               ) : null}
-              {result.verificationMode === "printable_pass_qr" ? (
-                <p className="panel-copy">Printable pass fallback.</p>
+              {["refupass_pass_qr", "printable_pass_qr"].includes(result.verificationMode) ? (
+                <p className="panel-copy">
+                  {result.verificationMode === "refupass_pass_qr"
+                    ? "Verified from a RefuPass-issued QR or PDF."
+                    : "Legacy printable pass format detected."}
+                </p>
               ) : null}
               <p className="code-chip">{result.verificationReference}</p>
               {result.canRedeem ? (

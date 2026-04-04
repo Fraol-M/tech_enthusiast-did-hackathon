@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowUpRight, BadgeCheck, UserRound } from "lucide-react";
+import { BadgeCheck, FileDown, UserRound } from "lucide-react";
 import Shell from "../components/Shell";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
@@ -15,8 +15,6 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
   const [eligibilityForm, setEligibilityForm] = useState({ status: "pending", notes: "" });
   const [issuanceSession, setIssuanceSession] = useState(null);
   const [status, setStatus] = useState("");
-  const popupRef = useRef(null);
-  const popupStateRef = useRef({ sessionToken: null, closureHandled: false });
 
   const loadEnrollment = async () => {
     try {
@@ -35,64 +33,6 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
     loadEnrollment();
   }, [id, session.accessToken]);
 
-  useEffect(() => {
-    if (!issuanceSession?.sessionToken) {
-      return undefined;
-    }
-
-    if (popupStateRef.current.sessionToken !== issuanceSession.sessionToken) {
-      popupStateRef.current = { sessionToken: issuanceSession.sessionToken, closureHandled: false };
-    }
-
-    let cancelled = false;
-    const pollIssuance = async () => {
-      try {
-        const current = await api.getIssuanceSession(session.accessToken, issuanceSession.sessionToken);
-        if (cancelled) {
-          return;
-        }
-        setIssuanceSession(current);
-
-        if (
-          popupRef.current &&
-          popupRef.current.closed &&
-          !popupStateRef.current.closureHandled &&
-          ["holder_in_progress", "entitlement_ready"].includes(current.status)
-        ) {
-          popupStateRef.current.closureHandled = true;
-          const closedSession = await api.updateIssuanceSessionStatus(
-            session.accessToken,
-            issuanceSession.sessionToken,
-            "wallet_window_closed",
-          );
-          if (cancelled) {
-            return;
-          }
-          setIssuanceSession(closedSession);
-          setStatus("Wallet window closed. RefuPass kept the entitlement ready for later verification.");
-        }
-
-        if (["credential_verified", "redeemed"].includes(current.status)) {
-          if (popupRef.current && !popupRef.current.closed) {
-            popupRef.current.close();
-          }
-          popupRef.current = null;
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setStatus(error.message);
-        }
-      }
-    };
-
-    pollIssuance();
-    const intervalId = window.setInterval(pollIssuance, 1500);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [issuanceSession?.sessionToken, session.accessToken]);
-
   const updateEligibility = async (event) => {
     event.preventDefault();
     setStatus("");
@@ -105,46 +45,12 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
     }
   };
 
-  const launchWalletPopup = async (sessionPayload) => {
-    const walletUrl = sessionPayload.externalWalletFlow?.url;
-    if (!walletUrl) {
-      setStatus("Issuance session is ready.");
-      return;
-    }
-
-    const popup = window.open(
-      walletUrl,
-      "refupass-wallet-issuance",
-      "popup=yes,width=520,height=760",
-    );
-    if (!popup) {
-      setStatus("Allow popups to continue the wallet issuance flow.");
-      return;
-    }
-
-    popupRef.current = popup;
-    popup.focus();
-    popupStateRef.current = { sessionToken: sessionPayload.sessionToken, closureHandled: false };
-
-    if (sessionPayload.status !== "holder_in_progress") {
-      const inProgress = await api.updateIssuanceSessionStatus(
-        session.accessToken,
-        sessionPayload.sessionToken,
-        "holder_in_progress",
-      );
-      setIssuanceSession(inProgress);
-    } else {
-      setIssuanceSession(sessionPayload);
-    }
-    setStatus("Continue in the wallet popup. RefuPass will keep tracking this issuance session.");
-  };
-
   const startIssuance = async () => {
     setStatus("");
     try {
       const payload = await api.createIssuanceSession(session.accessToken, Number(id));
       setIssuanceSession(payload);
-      await launchWalletPopup(payload);
+      setStatus("RefuPass pass created. Print it or save it as a PDF for the beneficiary.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -164,6 +70,15 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
     );
   }
 
+  const statusTone =
+    status.includes("updated") || status.includes("created") || status.includes("verified") ? "success" : "error";
+  const printTarget = issuanceSession
+    ? {
+        pathname: `/admin/enrollments/${id}/print`,
+        search: `?sessionToken=${encodeURIComponent(issuanceSession.sessionToken)}`,
+      }
+    : null;
+
   return (
     <Shell
       session={session}
@@ -173,7 +88,7 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
       navItems={navItems}
       aside={<Button as={Link} variant="secondary" to="/admin">Back to dashboard</Button>}
     >
-      {status ? <div className={`status-banner ${status.includes("updated") || status.includes("ready") || status.includes("tracking") || status.includes("verified") || status.includes("closed") ? "success" : "error"}`}>{status}</div> : null}
+      {status ? <div className={`status-banner ${statusTone}`}>{status}</div> : null}
 
       <section className="panel-card beneficiary-hero">
         <div className="beneficiary-hero-copy">
@@ -270,9 +185,7 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
                 }
               />
             </label>
-            <Button type="submit">
-              Save cycle decision
-            </Button>
+            <Button type="submit">Save cycle decision</Button>
           </form>
         </section>
       </div>
@@ -280,34 +193,55 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
       <section className="panel-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Entitlement issuance</p>
-            <h3>Issue credential</h3>
+            <p className="eyebrow">RefuPass issuance</p>
+            <h3>Generate beneficiary pass</h3>
           </div>
           <div className="card-actions">
             <Button type="button" onClick={startIssuance}>
               <BadgeCheck size={16} strokeWidth={2.2} />
-              Create issuance session
+              Create pass
             </Button>
+            {printTarget ? (
+              <Button
+                as={Link}
+                to={printTarget.pathname + printTarget.search}
+                state={{ printablePass: issuanceSession.printablePass, sessionToken: issuanceSession.sessionToken }}
+                variant="secondary"
+              >
+                <FileDown size={16} strokeWidth={2.2} />
+                Open pass
+              </Button>
+            ) : null}
           </div>
         </div>
 
         {issuanceSession ? (
           <div className="issuance-panel">
-            <div className="status-banner success">RefuPass has prepared this entitlement for the verified shared person.</div>
+            <div className="status-banner success">
+              RefuPass has generated the beneficiary pass for this eligible enrollment.
+            </div>
             <div className="detail-grid">
               <div>
                 <span>Issuer</span>
                 <strong>{issuanceSession.issuerId}</strong>
               </div>
               <div>
-                <span>Credential config</span>
-                <strong>{issuanceSession.credentialConfigurationId}</strong>
+                <span>Pass ID</span>
+                <strong>{issuanceSession.passId}</strong>
               </div>
               <div>
-                <span>Person subject</span>
+                <span>Person</span>
+                <strong>{issuanceSession.credentialPreview.fullName}</strong>
+              </div>
+              <div>
+                <span>Subject</span>
                 <strong title={issuanceSession.credentialPreview.subjectId}>
                   {formatSubjectId(issuanceSession.credentialPreview.subjectId)}
                 </strong>
+              </div>
+              <div>
+                <span>Cycle</span>
+                <strong>{issuanceSession.credentialPreview.aidCycle}</strong>
               </div>
               <div>
                 <span>Valid until</span>
@@ -327,18 +261,12 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
                 <li key={instruction}>{instruction}</li>
               ))}
             </ol>
-            {issuanceSession.externalWalletFlow ? (
-              <div className="card-actions">
-                <Button type="button" onClick={() => launchWalletPopup(issuanceSession)} variant="secondary">
-                  {issuanceSession.externalWalletFlow.label}
-                  <ArrowUpRight size={16} strokeWidth={2.2} />
-                </Button>
-                <p className="panel-copy">{issuanceSession.externalWalletFlow.note}</p>
-              </div>
-            ) : null}
+            <p className="panel-copy">
+              Open the pass, then print it or save it as a PDF. Aid workers will verify the QR or uploaded PDF directly in RefuPass.
+            </p>
           </div>
         ) : (
-          <p className="panel-copy">Create a session when this eligible enrollment is ready for issuer-managed credential delivery.</p>
+          <p className="panel-copy">Create a pass when this eligible enrollment is ready for beneficiary delivery.</p>
         )}
       </section>
 

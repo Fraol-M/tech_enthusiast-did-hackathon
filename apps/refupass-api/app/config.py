@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     esignet_callback_url: str = "http://127.0.0.1:8000/platform/identity/esignet/callback"
     esignet_client_name: str = "RefuPass Platform Verification"
     esignet_client_logo_url: str = "https://example.com/refupass-logo.png"
+    pass_signing_secret: str = "refupass-demo-pass-signing-secret"
 
     @property
     def allowed_origins_list(self) -> list[str]:

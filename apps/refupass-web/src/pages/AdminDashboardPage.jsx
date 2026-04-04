@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowUpRight, Clock3, PackageCheck, Search, UserPlus, Users2 } from "lucide-react";
+import { AlertTriangle, Clock3, FileDown, PackageCheck, Search, UserPlus, Users2 } from "lucide-react";
 import Shell from "../components/Shell";
 import StatCard from "../components/StatCard";
 import { api } from "../api/client";
@@ -29,8 +29,6 @@ export default function AdminDashboardPage({ session, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [workerForm, setWorkerForm] = useState(defaultWorkerForm);
   const [workerLoading, setWorkerLoading] = useState(false);
-  const popupRef = useRef(null);
-  const popupStateRef = useRef({ sessionToken: null, closureHandled: false });
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -58,64 +56,6 @@ export default function AdminDashboardPage({ session, onLogout }) {
     loadDashboard();
   }, [session.accessToken]);
 
-  useEffect(() => {
-    if (!issuanceSession?.sessionToken) {
-      return undefined;
-    }
-
-    if (popupStateRef.current.sessionToken !== issuanceSession.sessionToken) {
-      popupStateRef.current = { sessionToken: issuanceSession.sessionToken, closureHandled: false };
-    }
-
-    let cancelled = false;
-    const pollIssuance = async () => {
-      try {
-        const current = await api.getIssuanceSession(session.accessToken, issuanceSession.sessionToken);
-        if (cancelled) {
-          return;
-        }
-        setIssuanceSession(current);
-
-        if (
-          popupRef.current &&
-          popupRef.current.closed &&
-          !popupStateRef.current.closureHandled &&
-          ["holder_in_progress", "entitlement_ready"].includes(current.status)
-        ) {
-          popupStateRef.current.closureHandled = true;
-          const closedSession = await api.updateIssuanceSessionStatus(
-            session.accessToken,
-            issuanceSession.sessionToken,
-            "wallet_window_closed",
-          );
-          if (cancelled) {
-            return;
-          }
-          setIssuanceSession(closedSession);
-          setStatus("Wallet window closed. The entitlement remains ready in RefuPass.");
-        }
-
-        if (["credential_verified", "redeemed"].includes(current.status)) {
-          if (popupRef.current && !popupRef.current.closed) {
-            popupRef.current.close();
-          }
-          popupRef.current = null;
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setStatus(error.message);
-        }
-      }
-    };
-
-    pollIssuance();
-    const intervalId = window.setInterval(pollIssuance, 1500);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [issuanceSession?.sessionToken, session.accessToken]);
-
   const filteredEnrollments = useMemo(() => {
     if (!search.trim()) {
       return enrollments;
@@ -140,43 +80,12 @@ export default function AdminDashboardPage({ session, onLogout }) {
   ).length;
   const redeemedCount = enrollments.filter((enrollment) => enrollment.currentRedemption).length;
 
-  const launchWalletPopup = async (sessionPayload) => {
-    const walletUrl = sessionPayload.externalWalletFlow?.url;
-    if (!walletUrl) {
-      setStatus("Issuance session is ready.");
-      return;
-    }
-    const popup = window.open(
-      walletUrl,
-      "refupass-wallet-issuance",
-      "popup=yes,width=520,height=760",
-    );
-    if (!popup) {
-      setStatus("Allow popups to continue the wallet issuance flow.");
-      return;
-    }
-    popupRef.current = popup;
-    popup.focus();
-    popupStateRef.current = { sessionToken: sessionPayload.sessionToken, closureHandled: false };
-    if (sessionPayload.status !== "holder_in_progress") {
-      const inProgress = await api.updateIssuanceSessionStatus(
-        session.accessToken,
-        sessionPayload.sessionToken,
-        "holder_in_progress",
-      );
-      setIssuanceSession(inProgress);
-    } else {
-      setIssuanceSession(sessionPayload);
-    }
-    setStatus("Continue in the wallet popup. RefuPass will keep tracking this issuance session.");
-  };
-
   const handleIssue = async (programEnrollmentId) => {
     setStatus("");
     try {
       const sessionPayload = await api.createIssuanceSession(session.accessToken, programEnrollmentId);
       setIssuanceSession(sessionPayload);
-      await launchWalletPopup(sessionPayload);
+      setStatus("RefuPass pass created. Open it, then print it or save it as a PDF.");
     } catch (error) {
       setStatus(error.message);
     }
@@ -203,12 +112,21 @@ export default function AdminDashboardPage({ session, onLogout }) {
     }
   };
 
+  const statusTone =
+    status.includes("added") || status.includes("created") || status.includes("save") ? "success" : "error";
+  const latestEnrollmentId = issuanceSession
+    ? enrollments.find((item) => item.enrollmentCode === issuanceSession.printablePass.enrollmentCode)?.id
+    : null;
+  const latestPassLink = issuanceSession
+    ? `/admin/enrollments/${latestEnrollmentId}/print?sessionToken=${encodeURIComponent(issuanceSession.sessionToken)}`
+    : null;
+
   return (
     <Shell
       session={session}
       onLogout={onLogout}
       title="NGO admin"
-      subtitle="Shared people, NGO enrollments, issuance, staffing, and delivery."
+      subtitle="Shared people, NGO enrollments, RefuPass pass issuance, staffing, and delivery."
       navItems={navItems}
       aside={
         <>
@@ -225,7 +143,7 @@ export default function AdminDashboardPage({ session, onLogout }) {
         </>
       }
     >
-      {status ? <div className={`status-banner ${status.includes("added") || status.includes("tracking") || status.includes("ready") || status.includes("closed") || status.includes("verified") ? "success" : "error"}`}>{status}</div> : null}
+      {status ? <div className={`status-banner ${statusTone}`}>{status}</div> : null}
 
       <div className="stats-grid">
         <StatCard label="Eligible" value={eligibleCount} icon={Users2} />
@@ -242,18 +160,25 @@ export default function AdminDashboardPage({ session, onLogout }) {
       {issuanceSession ? (
         <section className="panel-card session-panel">
           <div className="session-panel-copy">
-            <p className="eyebrow">Latest issuance</p>
+            <p className="eyebrow">Latest RefuPass pass</p>
             <h3>{issuanceSession.credentialPreview.fullName}</h3>
-            <p className="panel-copy">Entitlement prepared in RefuPass for the verified shared person.</p>
+            <p className="panel-copy">
+              Pass ready for download, printing, or sharing as a PDF with the beneficiary.
+            </p>
           </div>
           <div className="issuance-actions">
-            {issuanceSession.externalWalletFlow ? (
-              <Button as="a" href={issuanceSession.externalWalletFlow.url} target="_blank" rel="noreferrer" variant="secondary">
-                {issuanceSession.externalWalletFlow.label}
-                <ArrowUpRight size={16} strokeWidth={2.2} />
+            {latestPassLink && latestEnrollmentId ? (
+              <Button
+                as={Link}
+                to={latestPassLink}
+                state={{ printablePass: issuanceSession.printablePass, sessionToken: issuanceSession.sessionToken }}
+                variant="secondary"
+              >
+                <FileDown size={16} strokeWidth={2.2} />
+                Open pass
               </Button>
             ) : null}
-            <p className="code-chip">{issuanceSession.credentialConfigurationId}</p>
+            <p className="code-chip">{issuanceSession.passId}</p>
           </div>
           <div className="detail-grid">
             <div>
@@ -279,19 +204,10 @@ export default function AdminDashboardPage({ session, onLogout }) {
               <strong>{issuanceSession.flowType.replaceAll("_", " ")}</strong>
             </div>
             <div>
-              <span>Session status</span>
+              <span>Status</span>
               <strong>{issuanceSession.status.replaceAll("_", " ")}</strong>
             </div>
           </div>
-          {issuanceSession.externalWalletFlow ? (
-            <div className="card-actions">
-              <Button type="button" onClick={() => launchWalletPopup(issuanceSession)} variant="secondary">
-                {issuanceSession.externalWalletFlow.label}
-                <ArrowUpRight size={16} strokeWidth={2.2} />
-              </Button>
-              <p className="panel-copy">{issuanceSession.externalWalletFlow.note}</p>
-            </div>
-          ) : null}
         </section>
       ) : null}
 
@@ -333,9 +249,11 @@ export default function AdminDashboardPage({ session, onLogout }) {
                   <dd>{enrollment.enrollmentCode}</dd>
                 </div>
                 <div>
-                  <dt>Subject</dt>
+                  <dt>Identity</dt>
                   <dd title={enrollment.person.authSubject || undefined}>
-                    {enrollment.person.authSubject ? `${describeIdentity(enrollment.person)} • ${formatSubjectId(enrollment.person.authSubject)}` : "Not linked"}
+                    {enrollment.person.authSubject
+                      ? `${describeIdentity(enrollment.person)} • ${formatSubjectId(enrollment.person.authSubject)}`
+                      : "Not linked"}
                   </dd>
                 </div>
                 <div>
@@ -360,7 +278,7 @@ export default function AdminDashboardPage({ session, onLogout }) {
                   disabled={enrollment.currentEligibility?.status !== "eligible"}
                   onClick={() => handleIssue(enrollment.id)}
                 >
-                  Issue now
+                  Create pass
                 </Button>
               </div>
             </article>

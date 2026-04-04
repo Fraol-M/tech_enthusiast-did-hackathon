@@ -427,16 +427,17 @@ def test_ngo_admin_can_create_issuance_session_for_eligible_enrollment(
 
     assert response.status_code == 201
     payload = response.json()
-    assert payload["issuerId"] == "RefuPassFoodAid"
-    assert payload["credentialConfigurationId"] == "RefuPassFoodAidCredential"
-    assert payload["status"] == "entitlement_ready"
-    assert payload["flowType"] == "issuer_managed"
-    assert payload["credentialPreview"]["subjectId"] == "5860356276"
-    assert payload["externalWalletFlow"]["mode"] == "authorization_code_compatibility"
-    assert payload["externalWalletFlow"]["requiresIdentityReauthentication"] is True
+    assert payload["issuerId"] == "RefuPass"
+    assert payload["credentialConfigurationId"] == "RefuPassPrintablePass"
+    assert payload["status"] == "pass_ready"
+    assert payload["flowType"] == "refupass_native_pass"
+    assert payload["credentialPreview"]["subjectId"] == "PER-001"
+    assert payload["passId"] == payload["sessionToken"]
+    assert payload["printablePass"]["passId"] == payload["sessionToken"]
+    assert payload["externalWalletFlow"] is None
 
 
-def test_ngo_admin_can_fetch_and_update_issuance_session_status(
+def test_ngo_admin_can_fetch_update_and_download_issuance_pass(
     client: TestClient,
     ngo_admin_headers: dict[str, str],
     enrollment_ids: dict[str, int],
@@ -449,16 +450,19 @@ def test_ngo_admin_can_fetch_and_update_issuance_session_status(
     session_token = created.json()["sessionToken"]
 
     fetched = client.get(f"/issuance-sessions/{session_token}", headers=ngo_admin_headers)
+    pass_response = client.get(f"/issuance-sessions/{session_token}/pass", headers=ngo_admin_headers)
     updated = client.patch(
         f"/issuance-sessions/{session_token}/status",
         headers=ngo_admin_headers,
-        json={"status": "holder_in_progress"},
+        json={"status": "pass_downloaded"},
     )
 
     assert fetched.status_code == 200
-    assert fetched.json()["status"] == "entitlement_ready"
+    assert fetched.json()["status"] == "pass_ready"
+    assert pass_response.status_code == 200
+    assert pass_response.json()["passId"] == session_token
     assert updated.status_code == 200
-    assert updated.json()["status"] == "holder_in_progress"
+    assert updated.json()["status"] == "pass_downloaded"
 
 
 def test_issuance_session_rejects_pending_enrollment(

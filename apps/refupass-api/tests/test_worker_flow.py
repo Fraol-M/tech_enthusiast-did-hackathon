@@ -19,8 +19,8 @@ def test_worker_verify_printable_pass_is_redeemable(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["verificationMode"] == "printable_pass_qr"
-    assert payload["cryptographicStatus"] == "not_checked"
+    assert payload["verificationMode"] == "refupass_pass_qr"
+    assert payload["cryptographicStatus"] == "valid"
     assert payload["businessStatus"] == "valid"
     assert payload["canRedeem"] is True
     assert payload["enrollmentSummary"]["enrollmentCode"] == "ENR-001"
@@ -224,6 +224,27 @@ def test_printable_pass_payload_matches_seeded_beneficiary(printable_pass_payloa
     payload = json.loads(printable_pass_payload)
 
     assert payload["recordType"] == "RefuPassPrintablePass"
-    assert payload["subjectId"] == "5860356276"
+    assert payload["verificationMode"] == "refupass_pass_qr"
+    assert payload["subjectId"] == "PER-001"
     assert payload["enrollmentCode"] == "ENR-001"
     assert payload["programName"] == "Emergency Food Assistance"
+
+
+def test_worker_rejects_tampered_refupass_pass(
+    client: TestClient,
+    worker_headers: dict[str, str],
+    printable_pass_payload: str,
+) -> None:
+    payload = json.loads(printable_pass_payload)
+    payload["fullName"] = "Tampered Person"
+
+    response = client.post(
+        "/worker/verify",
+        headers=worker_headers,
+        json={"credentialText": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["verificationMode"] == "refupass_pass_qr"
+    assert response.json()["cryptographicStatus"] == "invalid"
+    assert response.json()["businessStatus"] == "invalid"

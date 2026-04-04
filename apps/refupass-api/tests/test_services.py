@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 
 from app.main import (
@@ -9,6 +11,7 @@ from app.main import (
 )
 from app.models import ProgramEnrollment
 from app.services.issuance import build_credential_preview, build_printable_pass
+from app.services.pass_tokens import verify_pass_payload
 
 
 def test_build_credential_preview_uses_enrollment_and_cycle_fields(db_session) -> None:
@@ -18,7 +21,7 @@ def test_build_credential_preview_uses_enrollment_and_cycle_fields(db_session) -
 
     preview = build_credential_preview(enrollment, eligibility, aid_cycle)
 
-    assert preview.subject_id == "5860356276"
+    assert preview.subject_id == "PER-001"
     assert preview.person_code == "PER-001"
     assert preview.enrollment_code == "ENR-001"
     assert preview.household_id == "HH-001"
@@ -32,9 +35,12 @@ def test_build_printable_pass_contains_worker_qr_payload(db_session) -> None:
     eligibility = get_current_eligibility_for_enrollment(db_session, enrollment.id, aid_cycle.id)
 
     printable_pass = build_printable_pass(enrollment, eligibility, aid_cycle)
+    payload = json.loads(printable_pass.qr_payload)
 
-    assert '"recordType": "RefuPassPrintablePass"' in printable_pass.qr_payload
-    assert '"enrollmentCode": "ENR-001"' in printable_pass.qr_payload
+    assert payload["recordType"] == "RefuPassPrintablePass"
+    assert payload["verificationMode"] == "refupass_pass_qr"
+    assert payload["enrollmentCode"] == "ENR-001"
+    assert verify_pass_payload(payload, "refupass-demo-pass-signing-secret") is True
 
 
 def test_determine_business_status_accepts_printable_pass_business_checks_only(db_session) -> None:
