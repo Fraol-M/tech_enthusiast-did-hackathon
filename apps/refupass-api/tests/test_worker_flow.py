@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi.testclient import TestClient
-from app import main
+from app import runtime
 
 
 def test_worker_verify_printable_pass_is_redeemable(
@@ -137,7 +137,7 @@ def test_worker_verify_credential_string_with_metadata_resolves_enrollment(
                 },
             }
 
-    monkeypatch.setattr(main, "verify_client", FakeVerifyClient())
+    monkeypatch.setattr(runtime, "verify_client", FakeVerifyClient())
 
     response = client.post(
         "/worker/verify",
