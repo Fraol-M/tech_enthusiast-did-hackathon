@@ -1,19 +1,69 @@
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
+
+import jwt
+from jwt import ExpiredSignatureError, InvalidTokenError
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import get_settings
 from .database import get_db
 from .models import User
 
 
 security = HTTPBearer(auto_error=False)
+settings = get_settings()
+
+def _build_token(*, user: User, secret: str, token_type: str, expires_delta: timedelta) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user.username,
+        "role": user.role,
+        "type": token_type,
+        "iss": settings.jwt_issuer,
+        "iat": now,
+        "exp": now + expires_delta,
+    }
+    return jwt.encode(payload, secret, algorithm=settings.jwt_algorithm)
 
 
 def build_access_token(user: User) -> str:
-    return f"demo:{user.username}:{user.role}"
+    return _build_token(
+        user=user,
+        secret=settings.jwt_access_secret_key,
+        token_type="access",
+        expires_delta=timedelta(minutes=settings.jwt_access_token_ttl_minutes),
+    )
+
+
+def build_refresh_token(user: User) -> str:
+    return _build_token(
+        user=user,
+        secret=settings.jwt_refresh_secret_key,
+        token_type="refresh",
+        expires_delta=timedelta(days=settings.jwt_refresh_token_ttl_days),
+    )
+
+
+def decode_token(token: str, *, expected_type: str, secret: str) -> dict:
+    try:
+        payload = jwt.decode(
+            token,
+            secret,
+            algorithms=[settings.jwt_algorithm],
+            issuer=settings.jwt_issuer,
+        )
+    except ExpiredSignatureError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired") from exc
+    except InvalidTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+
+    if payload.get("type") != expected_type:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    return payload
 
 
 def get_current_user(
@@ -23,10 +73,15 @@ def get_current_user(
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
 
-    try:
-        _prefix, username, role = credentials.credentials.split(":", 2)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Malformed token") from exc
+    payload = decode_token(
+        credentials.credentials,
+        expected_type="access",
+        secret=settings.jwt_access_secret_key,
+    )
+    username = payload.get("sub")
+    role = payload.get("role")
+    if not username or not role:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
     user = db.scalar(select(User).where(User.username == username, User.role == role))
     if not user:

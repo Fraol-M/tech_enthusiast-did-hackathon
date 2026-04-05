@@ -3,6 +3,7 @@ from datetime import date, datetime, time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import get_settings
 from .models import (
     AidCycle,
     Eligibility,
@@ -18,9 +19,54 @@ from .models import (
 )
 
 
+settings = get_settings()
+
+
+def ensure_platform_admin(db: Session) -> None:
+    platform_admins = db.scalars(
+        select(User).where(User.role == "platform_admin").order_by(User.id.asc())
+    ).all()
+
+    conflicting_user = db.scalar(
+        select(User).where(
+            User.username == settings.platform_admin_username,
+            User.role != "platform_admin",
+        )
+    )
+    if conflicting_user:
+        raise RuntimeError(
+            "PLATFORM_ADMIN_USERNAME conflicts with a non-platform user. "
+            "Choose a unique username for the seeded platform admin."
+        )
+
+    if not platform_admins:
+        db.add(
+            User(
+                username=settings.platform_admin_username,
+                password=settings.platform_admin_password,
+                role="platform_admin",
+                display_name=settings.platform_admin_display_name,
+            )
+        )
+        db.flush()
+        return
+
+    primary_admin = platform_admins[0]
+    primary_admin.username = settings.platform_admin_username
+    primary_admin.password = settings.platform_admin_password
+    primary_admin.display_name = settings.platform_admin_display_name
+    primary_admin.ngo_id = None
+
+    for extra_admin in platform_admins[1:]:
+        db.delete(extra_admin)
+
+
 def seed_demo_data(db: Session) -> None:
-    existing_user = db.scalar(select(User.id).limit(1))
-    if existing_user:
+    ensure_platform_admin(db)
+
+    existing_non_platform_user = db.scalar(select(User.id).where(User.role != "platform_admin").limit(1))
+    if existing_non_platform_user:
+        db.commit()
         return
 
     ngo = db.scalar(select(Ngo).where(Ngo.name == "Relief Alliance Ethiopia"))
@@ -40,12 +86,6 @@ def seed_demo_data(db: Session) -> None:
         is_current=False,
     )
 
-    platform_admin = User(
-        username="admin",
-        password="admin123",
-        role="platform_admin",
-        display_name="RefuPass Platform Admin",
-    )
     ngo_admin = User(
         username="ngoadmin",
         password="ngo123",
@@ -181,7 +221,6 @@ def seed_demo_data(db: Session) -> None:
 
     db.add_all(
         [
-            platform_admin,
             ngo_admin,
             worker,
             ngo,
