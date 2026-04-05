@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..database import get_db
 from ..models import User
 from ..schemas import LoginRequest, LoginResponse, RefreshTokenRequest
-from ..security import build_access_token, build_refresh_token, decode_token
+from ..security import build_access_token, build_refresh_token, decode_token, verify_password
 from ..config import get_settings
 
 
@@ -30,8 +30,9 @@ def _build_login_response(user: User) -> LoginResponse:
 @router.post("/auth/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
     user = db.scalar(select(User).options(joinedload(User.ngo)).where(User.username == payload.username))
-    if not user or user.password != payload.password:
+    if not user or not verify_password(payload.password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     return _build_login_response(user)
 
 

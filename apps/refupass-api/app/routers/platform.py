@@ -22,7 +22,7 @@ from ..schemas import (
     IdentityVerificationStartRequest,
     PlatformNgoSummary,
 )
-from ..security import require_role
+from ..security import get_password_hash, require_role
 
 
 router = APIRouter()
@@ -65,7 +65,7 @@ def create_platform_ngo(
     ngo = Ngo(name=payload.ngo_name)
     ngo_admin = User(
         username=payload.username,
-        password=payload.password,
+        password=get_password_hash(payload.password),
         role="ngo_admin",
         display_name=payload.admin_display_name,
         ngo=ngo,

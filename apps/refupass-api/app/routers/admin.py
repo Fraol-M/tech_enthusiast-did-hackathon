@@ -42,7 +42,7 @@ from ..schemas import (
     ProgramEnrollmentSummary,
     StaffUserResponse,
 )
-from ..security import require_role
+from ..security import get_password_hash, require_role
 from ..services.issuance import build_issuance_payload, build_printable_pass
 
 
@@ -83,7 +83,7 @@ def create_aid_worker(
 
     aid_worker = User(
         username=payload.username,
-        password=payload.password,
+        password=get_password_hash(payload.password),
         role="aid_worker",
         display_name=payload.display_name,
         ngo_id=user.ngo_id,

@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
+from .security import get_password_hash, verify_password
 from .models import (
     AidCycle,
     Eligibility,
@@ -20,6 +21,17 @@ from .models import (
 
 
 settings = get_settings()
+
+
+def ensure_seeded_demo_identities_are_esignet_verified(db: Session) -> None:
+    for auth_subject in ("5860356276", "5555444433"):
+        person = db.scalar(select(Person).where(Person.auth_subject == auth_subject))
+        if not person:
+            continue
+        person.identity_status = "verified_digital"
+        person.identity_provider = "esignet_mock"
+        if person.verified_at is None:
+            person.verified_at = datetime(2026, 2, 1, 9, 0, 0)
 
 
 def ensure_platform_admin(db: Session) -> None:
@@ -43,7 +55,7 @@ def ensure_platform_admin(db: Session) -> None:
         db.add(
             User(
                 username=settings.platform_admin_username,
-                password=settings.platform_admin_password,
+                password=get_password_hash(settings.platform_admin_password),
                 role="platform_admin",
                 display_name=settings.platform_admin_display_name,
             )
@@ -53,7 +65,8 @@ def ensure_platform_admin(db: Session) -> None:
 
     primary_admin = platform_admins[0]
     primary_admin.username = settings.platform_admin_username
-    primary_admin.password = settings.platform_admin_password
+    if not verify_password(settings.platform_admin_password, primary_admin.password):
+        primary_admin.password = get_password_hash(settings.platform_admin_password)
     primary_admin.display_name = settings.platform_admin_display_name
     primary_admin.ngo_id = None
 
@@ -63,6 +76,7 @@ def ensure_platform_admin(db: Session) -> None:
 
 def seed_demo_data(db: Session) -> None:
     ensure_platform_admin(db)
+    ensure_seeded_demo_identities_are_esignet_verified(db)
 
     existing_non_platform_user = db.scalar(select(User.id).where(User.role != "platform_admin").limit(1))
     if existing_non_platform_user:
@@ -88,14 +102,14 @@ def seed_demo_data(db: Session) -> None:
 
     ngo_admin = User(
         username="ngoadmin",
-        password="ngo123",
+        password=get_password_hash("ngo123"),
         role="ngo_admin",
         display_name="NGO Admin",
         ngo=ngo,
     )
     worker = User(
         username="aidworker",
-        password="worker123",
+        password=get_password_hash("worker123"),
         role="aid_worker",
         display_name="Aid Worker",
         ngo=ngo,
@@ -129,8 +143,9 @@ def seed_demo_data(db: Session) -> None:
         full_name="Amina Hassan",
         phone="+251911223344",
         gender="female",
-        identity_status="verified_manual",
-        identity_provider="seed_registry",
+        identity_status="verified_digital",
+        identity_provider="esignet_mock",
+        verified_at=datetime(2026, 2, 1, 9, 0, 0),
         household=household_one,
     )
     person_two = Person(
@@ -139,8 +154,9 @@ def seed_demo_data(db: Session) -> None:
         full_name="Sami Bekele",
         phone="+251911334455",
         gender="male",
-        identity_status="verified_manual",
-        identity_provider="seed_registry",
+        identity_status="verified_digital",
+        identity_provider="esignet_mock",
+        verified_at=datetime(2026, 2, 1, 9, 0, 0),
         household=household_two,
     )
 
