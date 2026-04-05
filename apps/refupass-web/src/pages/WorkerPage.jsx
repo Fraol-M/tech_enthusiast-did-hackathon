@@ -99,15 +99,22 @@ export default function WorkerPage({ session, onLogout }) {
       session={session}
       onLogout={onLogout}
       title="Aid worker"
-      subtitle="Verify and redeem."
+      subtitle="Verify beneficiary passes, confirm delivery, and record field issues."
       navItems={navItems}
     >
       {status ? <div className={`status-banner ${status.includes("confirmed") || status.includes("opened") ? "success" : "error"}`}>{status}</div> : null}
 
       <div className="split-grid">
         <section className="panel-card">
-          <p className="eyebrow">Input</p>
-          <h3>RefuPass pass or VC</h3>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Verification input</p>
+              <h3>RefuPass pass</h3>
+            </div>
+          </div>
+          <p className="panel-copy">
+            Paste the QR payload or upload a RefuPass PDF, QR image, or structured export from the gate.
+          </p>
           <textarea
             className="credential-textarea"
             placeholder="Paste a RefuPass QR payload or upload PDF/PNG/JSON/TXT"
@@ -123,7 +130,7 @@ export default function WorkerPage({ session, onLogout }) {
               Upload PDF/PNG/JSON/TXT
               <input type="file" accept="application/pdf,application/json,text/plain,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp,.json,.txt" onChange={handleFileUpload} hidden />
             </label>
-            <Button type="button" onClick={handleVerify}>
+            <Button type="button" onClick={handleVerify} disabled={!credentialText.trim()}>
               <QrCode size={16} strokeWidth={2.2} />
               Verify pass
             </Button>
@@ -132,7 +139,12 @@ export default function WorkerPage({ session, onLogout }) {
         </section>
 
         <section className="panel-card">
-          <p className="eyebrow">Result</p>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Verification result</p>
+              <h3>Gate decision</h3>
+            </div>
+          </div>
           {result ? (
             <>
               <div className="detail-grid">
@@ -195,17 +207,24 @@ export default function WorkerPage({ session, onLogout }) {
       </div>
 
       <section className="panel-card">
-        <p className="eyebrow">Grievance capture</p>
-        <h3>Open grievance</h3>
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Grievance capture</p>
+            <h3>Flag a case for follow-up</h3>
+          </div>
+        </div>
+        <p className="panel-copy">
+          Use this when identity, eligibility, or delivery status needs manual review after the gate check.
+        </p>
         <div className="split-grid tight">
-          <label>
+          <label className="field-stack">
             Reason
             <input
               value={grievance.reason}
               onChange={(event) => setGrievance((current) => ({ ...current, reason: event.target.value }))}
             />
           </label>
-          <label>
+          <label className="field-stack">
             Details
             <textarea
               rows="4"

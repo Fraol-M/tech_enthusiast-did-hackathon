@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     esignet_client_name: str = "RefuPass Platform Verification"
     esignet_client_logo_url: str = "https://example.com/refupass-logo.png"
     pass_signing_secret: str = "refupass-demo-pass-signing-secret"
+    platform_admin_username: str = "admin"
+    platform_admin_password: str = "admin123"
+    platform_admin_display_name: str = "RefuPass Platform Admin"
+    jwt_access_secret_key: str = "refupass-dev-access-secret-change-me"
+    jwt_refresh_secret_key: str = "refupass-dev-refresh-secret-change-me"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_ttl_minutes: int = 15
+    jwt_refresh_token_ttl_days: int = 14
+    jwt_issuer: str = "refupass-api"
 
     @property
     def allowed_origins_list(self) -> list[str]:

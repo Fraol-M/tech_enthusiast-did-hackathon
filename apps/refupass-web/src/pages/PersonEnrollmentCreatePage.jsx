@@ -108,11 +108,14 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
               <h3>Select person</h3>
             </div>
           </div>
+          <p className="panel-copy">
+            Find a previously verified person, then attach them to your NGO program for the current aid cycle.
+          </p>
           <div className="search-wrap">
             <Search size={16} strokeWidth={2.2} />
             <input
               className="search-input"
-              placeholder="Search by name, subject, or person code"
+              placeholder="Search by name, identity, or person code"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -161,26 +164,29 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
           </div>
 
           {selectedPerson ? (
-            <div className="detail-grid">
-              <div>
-                <span>Person</span>
-                <strong>{selectedPerson.fullName}</strong>
+            <>
+              <p className="panel-copy">Selected person is ready to be enrolled into the program below.</p>
+              <div className="detail-grid">
+                <div>
+                  <span>Person</span>
+                  <strong>{selectedPerson.fullName}</strong>
+                </div>
+                <div>
+                  <span>Person code</span>
+                  <strong>{selectedPerson.personCode}</strong>
+                </div>
+                <div>
+                  <span>Identity</span>
+                  <strong title={selectedPerson.authSubject || undefined}>
+                    {selectedPerson.authSubject ? `${describeIdentity(selectedPerson)} • ${formatSubjectId(selectedPerson.authSubject)}` : "Not linked"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Household</span>
+                  <strong>{selectedPerson.household?.householdCode || "Not linked"}</strong>
+                </div>
               </div>
-              <div>
-                <span>Person code</span>
-                <strong>{selectedPerson.personCode}</strong>
-              </div>
-              <div>
-                <span>Identity</span>
-                <strong title={selectedPerson.authSubject || undefined}>
-                  {selectedPerson.authSubject ? `${describeIdentity(selectedPerson)} • ${formatSubjectId(selectedPerson.authSubject)}` : "Not linked"}
-                </strong>
-              </div>
-              <div>
-                <span>Household</span>
-                <strong>{selectedPerson.household?.householdCode || "Not linked"}</strong>
-              </div>
-            </div>
+            </>
           ) : (
             <p className="panel-copy">Select a person from the shared registry to continue.</p>
           )}

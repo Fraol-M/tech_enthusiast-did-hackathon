@@ -1,29 +1,127 @@
 const API_URL = import.meta.env.VITE_REFUPASS_API_URL || "http://localhost:8000";
+export const AUTH_STORAGE_KEY = "refupass-session";
+const AUTH_EVENT = "refupass-auth-changed";
 
-async function request(path, { token, ...options } = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+let refreshPromise = null;
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+function emitAuthChange(session) {
+  window.dispatchEvent(new CustomEvent(AUTH_EVENT, { detail: session }));
+}
+
+export function loadStoredSession() {
+  try {
+    return JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+  } catch (_error) {
+    return null;
+  }
+}
+
+export function saveSession(session, { emit = true } = {}) {
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  if (emit) {
+    emitAuthChange(session);
+  }
+}
+
+export function clearSession({ emit = true } = {}) {
+  window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  if (emit) {
+    emitAuthChange(null);
+  }
+}
+
+export function subscribeToAuthChanges(handler) {
+  const listener = (event) => handler(event.detail);
+  window.addEventListener(AUTH_EVENT, listener);
+  return () => window.removeEventListener(AUTH_EVENT, listener);
+}
+
+async function parseError(response) {
+  let message = "Request failed";
+  try {
+    const payload = await response.json();
+    message = payload.detail || payload.errorMessage || message;
+  } catch (_error) {
+    message = response.statusText || message;
+  }
+  return message;
+}
+
+async function performRefresh(session) {
+  const response = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refreshToken: session.refreshToken }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const refreshed = await response.json();
+  const nextSession = {
+    ...session,
+    ...refreshed,
+  };
+  saveSession(nextSession);
+  return nextSession;
+}
+
+async function refreshSession(session) {
+  if (!refreshPromise) {
+    refreshPromise = performRefresh(session).finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function request(path, { auth = true, token, ...options } = {}) {
+  const headers = {
+    ...(options.headers || {}),
+  };
+  if (!("Content-Type" in headers) && options.body && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const storedSession = loadStoredSession();
+  const bearerToken = auth ? storedSession?.accessToken || token : token;
+  if (bearerToken) {
+    headers.Authorization = `Bearer ${bearerToken}`;
+  }
+
+  let response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
   });
 
-  if (!response.ok) {
-    let message = "Request failed";
-    try {
-      const payload = await response.json();
-      message = payload.detail || payload.errorMessage || message;
-    } catch (_error) {
-      message = response.statusText || message;
+  if (response.status === 401 && auth) {
+    const latestSession = loadStoredSession();
+    if (!latestSession?.refreshToken) {
+      clearSession();
+      throw new Error("Session expired. Please sign in again.");
     }
-    throw new Error(message);
+
+    try {
+      const refreshedSession = await refreshSession(latestSession);
+      const retryHeaders = {
+        ...headers,
+        Authorization: `Bearer ${refreshedSession.accessToken}`,
+      };
+      response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: retryHeaders,
+      });
+    } catch (_error) {
+      clearSession();
+      throw new Error("Session expired. Please sign in again.");
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
   }
 
   if (response.status === 204) {
@@ -35,82 +133,79 @@ async function request(path, { token, ...options } = {}) {
 export const api = {
   login: (payload) =>
     request("/auth/login", {
+      auth: false,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getPlatformNgos: (token) => request("/platform/ngos", { token }),
-  createPlatformNgo: (token, payload) =>
+  refreshSession: (refreshToken) =>
+    request("/auth/refresh", {
+      auth: false,
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    }),
+  getPlatformNgos: (_token) => request("/platform/ngos"),
+  createPlatformNgo: (_token, payload) =>
     request("/platform/ngos", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getCurrentCycle: (token) => request("/aid-cycles/current", { token }),
-  getAidWorkers: (token) => request("/aid-workers", { token }),
-  createAidWorker: (token, payload) =>
+  getCurrentCycle: (_token) => request("/aid-cycles/current"),
+  getAidWorkers: (_token) => request("/aid-workers"),
+  createAidWorker: (_token, payload) =>
     request("/aid-workers", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getPeople: (token, search = "") =>
-    request(`/people${search ? `?search=${encodeURIComponent(search)}` : ""}`, { token }),
-  startIdentityVerification: (token, payload) =>
+  getPeople: (_token, search = "") =>
+    request(`/people${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  startIdentityVerification: (_token, payload) =>
     request("/platform/identity-verifications", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getIdentityVerification: (token, sessionToken) =>
-    request(`/platform/identity-verifications/${sessionToken}`, { token }),
-  getProgramEnrollments: (token, search = "") =>
-    request(`/program-enrollments${search ? `?search=${encodeURIComponent(search)}` : ""}`, { token }),
-  createProgramEnrollment: (token, payload) =>
+  getIdentityVerification: (_token, sessionToken) =>
+    request(`/platform/identity-verifications/${sessionToken}`),
+  getProgramEnrollments: (_token, search = "") =>
+    request(`/program-enrollments${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  createProgramEnrollment: (_token, payload) =>
     request("/program-enrollments", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getProgramEnrollment: (token, id) => request(`/program-enrollments/${id}`, { token }),
-  updateProgramEnrollmentEligibility: (token, id, payload) =>
+  getProgramEnrollment: (_token, id) => request(`/program-enrollments/${id}`),
+  updateProgramEnrollmentEligibility: (_token, id, payload) =>
     request(`/program-enrollments/${id}/eligibility`, {
-      token,
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  createIssuanceSession: (token, programEnrollmentId) =>
+  createIssuanceSession: (_token, programEnrollmentId) =>
     request("/issuance-sessions", {
-      token,
       method: "POST",
       body: JSON.stringify({ programEnrollmentId }),
     }),
-  getIssuanceSession: (token, sessionToken) =>
-    request(`/issuance-sessions/${sessionToken}`, { token }),
-  getIssuancePass: (token, sessionToken) =>
-    request(`/issuance-sessions/${sessionToken}/pass`, { token }),
-  updateIssuanceSessionStatus: (token, sessionToken, status) =>
+  getIssuanceSession: (_token, sessionToken) =>
+    request(`/issuance-sessions/${sessionToken}`),
+  getIssuancePass: (_token, sessionToken) =>
+    request(`/issuance-sessions/${sessionToken}/pass`),
+  updateIssuanceSessionStatus: (_token, sessionToken, status) =>
     request(`/issuance-sessions/${sessionToken}/status`, {
-      token,
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
-  verifyCredential: (token, payload) =>
+  verifyCredential: (_token, payload) =>
     request("/worker/verify", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  redeem: (token, payload) =>
+  redeem: (_token, payload) =>
     request("/worker/redeem", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  getRedemptions: (token) => request("/redemptions", { token }),
-  getGrievances: (token) => request("/grievances", { token }),
-  createGrievance: (token, payload) =>
+  getRedemptions: (_token) => request("/redemptions"),
+  getGrievances: (_token) => request("/grievances"),
+  createGrievance: (_token, payload) =>
     request("/grievances", {
-      token,
       method: "POST",
       body: JSON.stringify(payload),
     }),

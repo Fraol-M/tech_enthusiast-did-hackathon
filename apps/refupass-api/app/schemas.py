@@ -26,10 +26,15 @@ class LoginRequest(ApiModel):
 
 class LoginResponse(ApiModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     role: str
     display_name: str
     ngo_name: str | None = None
+
+
+class RefreshTokenRequest(ApiModel):
+    refresh_token: str
 
 
 class NgoSummary(ApiModel):

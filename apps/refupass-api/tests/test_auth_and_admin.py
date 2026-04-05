@@ -10,7 +10,7 @@ def test_health_check(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_login_returns_access_token(client: TestClient) -> None:
+def test_login_returns_access_and_refresh_tokens(client: TestClient) -> None:
     response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
 
     assert response.status_code == 200
@@ -18,7 +18,22 @@ def test_login_returns_access_token(client: TestClient) -> None:
     assert payload["role"] == "platform_admin"
     assert payload["displayName"] == "RefuPass Platform Admin"
     assert payload["ngoName"] is None
-    assert payload["accessToken"].startswith("demo:admin:")
+    assert isinstance(payload["accessToken"], str)
+    assert isinstance(payload["refreshToken"], str)
+    assert payload["accessToken"] != payload["refreshToken"]
+    assert payload["tokenType"] == "bearer"
+
+
+def test_refresh_returns_new_access_and_refresh_tokens(client: TestClient) -> None:
+    login_response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+
+    response = client.post("/auth/refresh", json={"refreshToken": login_response.json()["refreshToken"]})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["role"] == "platform_admin"
+    assert isinstance(payload["accessToken"], str)
+    assert isinstance(payload["refreshToken"], str)
 
 
 def test_login_rejects_invalid_credentials(client: TestClient) -> None:
