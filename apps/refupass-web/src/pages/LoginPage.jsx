@@ -1,16 +1,34 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
+import { ArrowRight, ShieldCheck, Shield, Users, User } from "lucide-react";
 import { api } from "../api/client";
+import { useToast } from "../components/ToastProvider";
+import { ROLE_OPTIONS, getRoleLabel } from "../utils/roles";
+
+const ROLE_ICONS = {
+  platform_admin: Shield,
+  ngo_admin: Users,
+  aid_worker: User,
+};
 
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: "", password: "" });
+  const location = useLocation();
+  const { showToast } = useToast();
+  const initialRole = ROLE_OPTIONS.some((option) => option.value === location.state?.preselect)
+    ? location.state.preselect
+    : "ngo_admin";
+  const [form, setForm] = useState({ username: "", password: "", role: initialRole });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+    setError("");
+  };
+
+  const handleRoleChange = (role) => {
+    setForm((current) => ({ ...current, role }));
     setError("");
   };
 
@@ -21,16 +39,28 @@ export default function LoginPage({ onLogin }) {
     try {
       const response = await api.login(form);
       onLogin(response);
+      showToast({
+        title: `${response.roleLabel} access granted`,
+        message: `Signed in as ${response.displayName}.`,
+        tone: "success",
+      });
       navigate(
         response.role === "platform_admin" ? "/platform" : response.role === "aid_worker" ? "/worker" : "/admin",
         { replace: true },
       );
     } catch (nextError) {
       setError(nextError.message);
+      showToast({
+        title: `Could not sign in as ${getRoleLabel(form.role)}`,
+        message: nextError.message,
+        tone: "error",
+      });
     } finally {
       setLoading(false);
     }
   };
+
+  const selectedRole = ROLE_OPTIONS.find((option) => option.value === form.role) || ROLE_OPTIONS[0];
 
   return (
     <div className="login-layout">
@@ -56,17 +86,43 @@ export default function LoginPage({ onLogin }) {
               <ShieldCheck size={24} strokeWidth={1.5} />
             </div>
             <h2>Secure Access</h2>
-            <p>Sign in with your assigned RefuPass account</p>
+            <p>Choose the workspace you are signing into, then use the matching account.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
+            <div className="login-role-group" aria-label="Account type">
+              {ROLE_OPTIONS.map((option) => {
+                const Icon = ROLE_ICONS[option.value];
+                const isActive = form.role === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`login-role-option ${isActive ? "active" : ""}`}
+                    onClick={() => handleRoleChange(option.value)}
+                  >
+                    <span className="login-role-option__icon">
+                      <Icon size={16} strokeWidth={1.8} />
+                    </span>
+                    <span className="login-role-option__copy">
+                      <strong>{option.label}</strong>
+                      <small>{option.description}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="login-role-banner">
+              <span>Signing in as</span>
+              <strong>{selectedRole.label}</strong>
+            </div>
             <label className="login-field">
               <span>Username</span>
               <input
                 name="username"
                 value={form.username}
                 onChange={handleChange}
-                placeholder="Enter your username"
+                placeholder={`${selectedRole.shortLabel.toLowerCase()} username`}
                 required
               />
             </label>

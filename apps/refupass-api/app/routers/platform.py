@@ -14,7 +14,7 @@ from ..database import get_db
 from ..domain.operations import generate_reference
 from ..domain.operations import create_household_from_payload, create_or_reuse_person
 from ..domain.serializers import serialize_identity_verification_session, serialize_platform_ngo
-from ..models import IdentityVerificationSession, Ngo, Program, User
+from ..models import IdentityVerificationSession, Ngo, Person, Program, User
 from ..schemas import (
     AdminRegisterRequest,
     IdentityVerificationSessionResponse,
@@ -66,7 +66,7 @@ def create_platform_ngo(
     ngo_admin = User(
         username=payload.username,
         password=get_password_hash(payload.password),
-        role="ngo_admin",
+        role=payload.role,
         display_name=payload.admin_display_name,
         ngo=ngo,
     )
@@ -193,6 +193,7 @@ async def complete_identity_verification(
             code=code,
         )
         payload = verification_session.person_payload
+        existing_person = db.scalar(select(Person.id).where(Person.auth_subject == verified_identity["auth_subject"]))
         household_code = payload.get("household_code") or generate_reference("HH")
         primary_contact_name = payload.get("primary_contact_name") or payload["full_name"]
         household = create_household_from_payload(
@@ -219,6 +220,10 @@ async def complete_identity_verification(
         verification_session.person_id = person.id
         verification_session.completed_at = datetime.now(timezone.utc)
         verification_session.error_message = None
+        verification_session.person_payload = {
+            **payload,
+            "verification_outcome": "existing_person" if existing_person else "created_person",
+        }
         db.commit()
         return HTMLResponse(
             "<script>window.close();</script><h1>Verification complete</h1><p>You can close this window.</p>",

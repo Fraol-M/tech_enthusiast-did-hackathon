@@ -4,6 +4,7 @@ import { Search, UserPlus } from "lucide-react";
 import Shell from "../components/Shell";
 import Button from "../components/Button";
 import { api } from "../api/client";
+import { useToast } from "../components/ToastProvider";
 import { describeIdentity, formatSubjectId } from "../utils/identity";
 
 const navItems = [{ to: "/admin", label: "NGO dashboard", end: false, icon: UserPlus }];
@@ -28,6 +29,7 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(true);
+  const { showToast } = useToast();
 
   const loadPeople = async (query = "") => {
     setSearching(true);
@@ -101,6 +103,11 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
     event.preventDefault();
     if (!selectedPerson) {
       setStatus("Select a person before creating an enrollment.");
+      showToast({
+        title: "Select a person first",
+        message: "Choose a verified person from the shared registry before creating an enrollment.",
+        tone: "warning",
+      });
       return;
     }
     setLoading(true);
@@ -115,9 +122,19 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
         rationTier: form.rationTier,
         notes: form.notes || "Created through the NGO enrollment flow.",
       });
+      showToast({
+        title: "Enrollment ready",
+        message: `${selectedPerson.fullName} is now attached to ${enrollment.program.name}.`,
+        tone: "success",
+      });
       navigate(`/admin/enrollments/${enrollment.id}`, { replace: true });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not create enrollment",
+        message: error.message,
+        tone: "error",
+      });
     } finally {
       setLoading(false);
     }

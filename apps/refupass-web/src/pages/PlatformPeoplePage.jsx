@@ -4,6 +4,7 @@ import { Users2, ArrowLeft } from "lucide-react";
 import Shell from "../components/Shell";
 import Button from "../components/Button";
 import { api } from "../api/client";
+import { useToast } from "../components/ToastProvider";
 import { describeIdentity, formatSubjectId } from "../utils/identity";
 
 const navItems = [
@@ -28,6 +29,7 @@ export default function PlatformPeoplePage({ session, onLogout }) {
   const [personSubmitting, setPersonSubmitting] = useState(false);
   const [verificationSessionToken, setVerificationSessionToken] = useState("");
   const popupRef = useRef(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -60,8 +62,18 @@ export default function PlatformPeoplePage({ session, onLogout }) {
           setVerificationSessionToken("");
           setPersonSubmitting(false);
           setPersonForm(defaultPersonForm);
+          const alreadyRegistered = current.resolution === "existing_person";
           setStatusTone("success");
-          setStatus(`${current.person.fullName} verified with eSignet and added to the shared registry.`);
+          setStatus(current.message || `${current.person.fullName} verified with eSignet and added to the shared registry.`);
+          showToast({
+            title: alreadyRegistered ? "Person already verified" : "Person verified",
+            message:
+              current.message ||
+              (alreadyRegistered
+                ? `${current.person.fullName} is already in the shared registry.`
+                : `${current.person.fullName} was added to the shared registry.`),
+            tone: alreadyRegistered ? "warning" : "success",
+          });
           if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
           popupRef.current = null;
           return;
@@ -71,6 +83,11 @@ export default function PlatformPeoplePage({ session, onLogout }) {
           setPersonSubmitting(false);
           setStatusTone("error");
           setStatus(current.errorMessage || "eSignet verification failed.");
+          showToast({
+            title: "Verification failed",
+            message: current.errorMessage || "eSignet verification failed.",
+            tone: "error",
+          });
           popupRef.current = null;
           return;
         }
@@ -79,6 +96,11 @@ export default function PlatformPeoplePage({ session, onLogout }) {
           setPersonSubmitting(false);
           setStatusTone("error");
           setStatus("Verification window closed before the person was verified.");
+          showToast({
+            title: "Verification interrupted",
+            message: "The eSignet window was closed before verification finished.",
+            tone: "warning",
+          });
           popupRef.current = null;
         }
       } catch (error) {
@@ -87,6 +109,11 @@ export default function PlatformPeoplePage({ session, onLogout }) {
           setPersonSubmitting(false);
           setStatusTone("error");
           setStatus(error.message);
+          showToast({
+            title: "Could not check verification status",
+            message: error.message,
+            tone: "error",
+          });
           popupRef.current = null;
         }
       }
@@ -124,6 +151,11 @@ export default function PlatformPeoplePage({ session, onLogout }) {
         setPersonSubmitting(false);
         setStatusTone("error");
         setStatus("Allow popups to continue verification with eSignet.");
+        showToast({
+          title: "Popup blocked",
+          message: "Allow popups to continue verification with eSignet.",
+          tone: "warning",
+        });
         return;
       }
       popupRef.current = popup;
@@ -133,6 +165,11 @@ export default function PlatformPeoplePage({ session, onLogout }) {
     } catch (error) {
       setStatusTone("error");
       setStatus(error.message);
+      showToast({
+        title: "Could not start verification",
+        message: error.message,
+        tone: "error",
+      });
       setPersonSubmitting(false);
     }
   };

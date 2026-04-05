@@ -6,6 +6,7 @@ import StatCard from "../components/StatCard";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import { useToast } from "../components/ToastProvider";
 import { describeIdentity, formatSubjectId } from "../utils/identity";
 
 const navItems = [
@@ -20,6 +21,7 @@ export default function AdminRosterPage({ session, onLogout }) {
   const [issuanceSession, setIssuanceSession] = useState(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -61,8 +63,18 @@ export default function AdminRosterPage({ session, onLogout }) {
       const sessionPayload = await api.createIssuanceSession(session.accessToken, programEnrollmentId);
       setIssuanceSession(sessionPayload);
       setStatus("RefuPass pass created. Open it, then print it or save it as a PDF.");
+      showToast({
+        title: "Beneficiary pass created",
+        message: "The latest RefuPass pass is ready for printing or download.",
+        tone: "success",
+      });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not create pass",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 

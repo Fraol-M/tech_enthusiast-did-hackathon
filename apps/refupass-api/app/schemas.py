@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,6 +22,7 @@ class HealthResponse(ApiModel):
 class LoginRequest(ApiModel):
     username: str
     password: str
+    role: Literal["platform_admin", "ngo_admin", "aid_worker"]
 
 
 class LoginResponse(ApiModel):
@@ -29,6 +30,7 @@ class LoginResponse(ApiModel):
     refresh_token: str
     token_type: str = "bearer"
     role: str
+    role_label: str
     display_name: str
     ngo_name: str | None = None
 
@@ -151,6 +153,7 @@ class AdminRegisterRequest(ApiModel):
     admin_display_name: str
     username: str
     password: str
+    role: Literal["ngo_admin"] = "ngo_admin"
 
 
 class PlatformNgoSummary(ApiModel):
@@ -176,6 +179,8 @@ class IdentityVerificationSessionStatus(ApiModel):
     provider: str
     verified_subject: str | None = None
     error_message: str | None = None
+    resolution: str | None = None
+    message: str | None = None
     person: PersonDetail | None = None
 
 
@@ -183,6 +188,7 @@ class AidWorkerCreate(ApiModel):
     display_name: str
     username: str
     password: str
+    role: Literal["aid_worker"] = "aid_worker"
 
 
 class ProgramEnrollmentCreate(ApiModel):

@@ -3,6 +3,8 @@ import { User, Shield, Users, ArrowRight, ShieldCheck, Heart, Fingerprint } from
 
 export default function HomePage({ session }) {
   const navigate = useNavigate();
+  const dashboardPath =
+    session?.role === "platform_admin" ? "/platform" : session?.role === "aid_worker" ? "/worker" : "/admin";
 
   const handleRoleSelection = (roleTab) => {
     navigate('/login', { state: { preselect: roleTab } });
@@ -18,7 +20,7 @@ export default function HomePage({ session }) {
         </div>
         <div className="elegant-nav-links">
           {session ? (
-            <Link to="/platform" className="button button-primary">Return to Dashboard</Link>
+            <Link to={dashboardPath} className="button button-primary">Return to Dashboard</Link>
           ) : (
             <Link to="/login" className="button">Sign In <ArrowRight size={16} strokeWidth={1.5} /></Link>
           )}

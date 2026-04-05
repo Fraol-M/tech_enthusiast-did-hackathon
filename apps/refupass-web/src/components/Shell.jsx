@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import Button from "./Button";
+import { getRoleLabel } from "../utils/roles";
 
 export default function Shell({ session, onLogout, title, subtitle, navItems, children, aside }) {
   const workspaceLabel = session?.role === "platform_admin" ? "RefuPass Platform" : session?.ngoName || "RefuPass NGO";
@@ -49,7 +50,7 @@ export default function Shell({ session, onLogout, title, subtitle, navItems, ch
             <div className="user-chip user-chip-muted">
               <span>{workspaceLabel}</span>
             </div>
-            <p className="eyebrow">Role: {session.role.replace("_", " ")}</p>
+            <p className="eyebrow">Role: {getRoleLabel(session.role)}</p>
           </div>
           <Button className="full-width" variant="secondary" type="button" onClick={onLogout}>
             Sign out

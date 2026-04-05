@@ -84,7 +84,7 @@ def create_aid_worker(
     aid_worker = User(
         username=payload.username,
         password=get_password_hash(payload.password),
-        role="aid_worker",
+        role=payload.role,
         display_name=payload.display_name,
         ngo_id=user.ngo_id,
     )

@@ -14,6 +14,7 @@ import ProgramEnrollmentDetailPage from "./pages/ProgramEnrollmentDetailPage";
 import PersonEnrollmentCreatePage from "./pages/PersonEnrollmentCreatePage";
 import WorkerPage from "./pages/WorkerPage";
 import PrintablePassPage from "./pages/PrintablePassPage";
+import { ToastProvider } from "./components/ToastProvider";
 
 const SUPPORTED_ROLES = new Set(["platform_admin", "ngo_admin", "aid_worker"]);
 
@@ -86,35 +87,37 @@ export default function App() {
           : "/";
 
   return (
-    <Routes>
-      <Route path="/" element={<HomePage session={session} />} />
-      <Route
-        path="/login"
-        element={session ? <Navigate to={defaultPath} replace /> : <LoginPage onLogin={onLogin} />}
-      />
-      <Route element={<ProtectedRoute session={session} />}>
-        {/* Platform Admin */}
-        <Route element={<RoleRoute session={session} allowedRoles={["platform_admin"]} />}>
-          <Route path="/platform" element={<PlatformDashboardPage session={session} onLogout={onLogout} />} />
-          <Route path="/platform/ngos" element={<PlatformNgosPage session={session} onLogout={onLogout} />} />
-          <Route path="/platform/people" element={<PlatformPeoplePage session={session} onLogout={onLogout} />} />
+    <ToastProvider>
+      <Routes>
+        <Route path="/" element={<HomePage session={session} />} />
+        <Route
+          path="/login"
+          element={session ? <Navigate to={defaultPath} replace /> : <LoginPage onLogin={onLogin} />}
+        />
+        <Route element={<ProtectedRoute session={session} />}>
+          {/* Platform Admin */}
+          <Route element={<RoleRoute session={session} allowedRoles={["platform_admin"]} />}>
+            <Route path="/platform" element={<PlatformDashboardPage session={session} onLogout={onLogout} />} />
+            <Route path="/platform/ngos" element={<PlatformNgosPage session={session} onLogout={onLogout} />} />
+            <Route path="/platform/people" element={<PlatformPeoplePage session={session} onLogout={onLogout} />} />
+          </Route>
+          {/* NGO Admin */}
+          <Route element={<RoleRoute session={session} allowedRoles={["ngo_admin"]} />}>
+            <Route path="/admin" element={<AdminDashboardPage session={session} onLogout={onLogout} />} />
+            <Route path="/admin/roster" element={<AdminRosterPage session={session} onLogout={onLogout} />} />
+            <Route path="/admin/workers" element={<AdminWorkersPage session={session} onLogout={onLogout} />} />
+            <Route path="/admin/deliveries" element={<AdminDeliveriesPage session={session} onLogout={onLogout} />} />
+            <Route path="/admin/enrollments/new" element={<PersonEnrollmentCreatePage session={session} onLogout={onLogout} />} />
+            <Route path="/admin/enrollments/:id" element={<ProgramEnrollmentDetailPage session={session} onLogout={onLogout} />} />
+            <Route path="/admin/enrollments/:id/print" element={<PrintablePassPage session={session} onLogout={onLogout} />} />
+          </Route>
+          {/* Aid Worker */}
+          <Route element={<RoleRoute session={session} allowedRoles={["aid_worker"]} />}>
+            <Route path="/worker" element={<WorkerPage session={session} onLogout={onLogout} />} />
+          </Route>
         </Route>
-        {/* NGO Admin */}
-        <Route element={<RoleRoute session={session} allowedRoles={["ngo_admin"]} />}>
-          <Route path="/admin" element={<AdminDashboardPage session={session} onLogout={onLogout} />} />
-          <Route path="/admin/roster" element={<AdminRosterPage session={session} onLogout={onLogout} />} />
-          <Route path="/admin/workers" element={<AdminWorkersPage session={session} onLogout={onLogout} />} />
-          <Route path="/admin/deliveries" element={<AdminDeliveriesPage session={session} onLogout={onLogout} />} />
-          <Route path="/admin/enrollments/new" element={<PersonEnrollmentCreatePage session={session} onLogout={onLogout} />} />
-          <Route path="/admin/enrollments/:id" element={<ProgramEnrollmentDetailPage session={session} onLogout={onLogout} />} />
-          <Route path="/admin/enrollments/:id/print" element={<PrintablePassPage session={session} onLogout={onLogout} />} />
-        </Route>
-        {/* Aid Worker */}
-        <Route element={<RoleRoute session={session} allowedRoles={["aid_worker"]} />}>
-          <Route path="/worker" element={<WorkerPage session={session} onLogout={onLogout} />} />
-        </Route>
-      </Route>
-      <Route path="*" element={<Navigate to={session ? defaultPath : "/"} replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to={session ? defaultPath : "/"} replace />} />
+      </Routes>
+    </ToastProvider>
   );
 }

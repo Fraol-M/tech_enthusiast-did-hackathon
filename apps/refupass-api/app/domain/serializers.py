@@ -110,12 +110,20 @@ def serialize_identity_verification_session(
     verification_session: IdentityVerificationSession,
 ) -> IdentityVerificationSessionStatus:
     person = get_person_or_404(db, verification_session.person_id) if verification_session.person_id else None
+    resolution = verification_session.person_payload.get("verification_outcome")
+    message = None
+    if resolution == "existing_person":
+        message = "This person was already verified and remains in the shared registry."
+    elif resolution == "created_person":
+        message = "Person verified with eSignet and added to the shared registry."
     return IdentityVerificationSessionStatus(
         session_token=verification_session.session_token,
         status=verification_session.status,
         provider=verification_session.provider,
         verified_subject=verification_session.verified_subject,
         error_message=verification_session.error_message,
+        resolution=resolution,
+        message=message,
         person=serialize_person_detail(db, person) if person else None,
     )
 

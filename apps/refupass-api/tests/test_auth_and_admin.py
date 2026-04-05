@@ -15,11 +15,12 @@ def test_health_check(client: TestClient) -> None:
 
 
 def test_login_returns_access_and_refresh_tokens(client: TestClient) -> None:
-    response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+    response = client.post("/auth/login", json={"username": "admin", "password": "admin123", "role": "platform_admin"})
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["role"] == "platform_admin"
+    assert payload["roleLabel"] == "Platform admin"
     assert payload["displayName"] == "RefuPass Platform Admin"
     assert payload["ngoName"] is None
     assert isinstance(payload["accessToken"], str)
@@ -37,7 +38,10 @@ def test_seeded_admin_password_is_stored_hashed(db_session) -> None:
 
 
 def test_refresh_returns_new_access_and_refresh_tokens(client: TestClient) -> None:
-    login_response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+    login_response = client.post(
+        "/auth/login",
+        json={"username": "admin", "password": "admin123", "role": "platform_admin"},
+    )
 
     response = client.post("/auth/refresh", json={"refreshToken": login_response.json()["refreshToken"]})
 
@@ -49,10 +53,17 @@ def test_refresh_returns_new_access_and_refresh_tokens(client: TestClient) -> No
 
 
 def test_login_rejects_invalid_credentials(client: TestClient) -> None:
-    response = client.post("/auth/login", json={"username": "admin", "password": "wrong"})
+    response = client.post("/auth/login", json={"username": "admin", "password": "wrong", "role": "platform_admin"})
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid credentials"
+
+
+def test_login_rejects_role_mismatch(client: TestClient) -> None:
+    response = client.post("/auth/login", json={"username": "admin", "password": "admin123", "role": "aid_worker"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "This account is registered as Platform admin, not Aid worker."
 
 
 def test_program_enrollments_require_authentication(client: TestClient) -> None:
@@ -131,6 +142,7 @@ def test_platform_admin_can_register_new_ngo_admin(
             "adminDisplayName": "Marta Ayele",
             "username": "marta-admin",
             "password": "safe-pass-123",
+            "role": "ngo_admin",
         },
     )
 
@@ -293,10 +305,44 @@ def test_esignet_callback_creates_shared_person_and_status_record(
     assert status_response.status_code == 200
     payload = status_response.json()
     assert payload["status"] == "completed"
+    assert payload["resolution"] == "created_person"
     assert payload["verifiedSubject"] == "7777888899"
     assert payload["person"]["authSubject"] == "7777888899"
     assert payload["person"]["identityStatus"] == "verified_digital"
     assert payload["person"]["identityProvider"] == "esignet_mock"
+
+
+def test_esignet_callback_reuses_existing_person_and_reports_it(
+    client: TestClient,
+    platform_headers: dict[str, str],
+) -> None:
+    verification_response = client.post(
+        "/platform/identity-verifications",
+        headers=platform_headers,
+        json={
+            "fullName": "Amina Hassan",
+            "phone": "+251911223344",
+            "gender": "female",
+            "familySize": 5,
+            "settlement": "Kebribeyah Camp",
+        },
+    )
+    session_token = verification_response.json()["sessionToken"]
+
+    client.get(
+        "/platform/identity/esignet/callback",
+        params={"code": "5860356276", "state": f"state-{session_token}"},
+    )
+    status_response = client.get(
+        f"/platform/identity-verifications/{session_token}",
+        headers=platform_headers,
+    )
+
+    assert status_response.status_code == 200
+    payload = status_response.json()
+    assert payload["status"] == "completed"
+    assert payload["resolution"] == "existing_person"
+    assert payload["person"]["authSubject"] == "5860356276"
 
 
 def test_new_person_enrollment_creates_program_enrollment_for_dashboard(
@@ -365,7 +411,7 @@ def test_second_ngo_can_enroll_same_shared_person_without_creating_duplicate_per
     )
     login_response = client.post(
         "/auth/login",
-        json={"username": "marta-admin", "password": "safe-pass-123"},
+        json={"username": "marta-admin", "password": "safe-pass-123", "role": "ngo_admin"},
     )
     other_headers = {"Authorization": f"Bearer {login_response.json()['accessToken']}"}
 
@@ -401,6 +447,7 @@ def test_ngo_admin_can_register_aid_worker(client: TestClient, ngo_admin_headers
             "displayName": "Lulit Kassa",
             "username": "lulit-worker",
             "password": "field-pass-123",
+            "role": "aid_worker",
         },
     )
 
@@ -423,6 +470,7 @@ def test_created_aid_worker_password_is_stored_hashed(
             "displayName": "Hash Check Worker",
             "username": "hash-check-worker",
             "password": "hash-check-pass",
+            "role": "aid_worker",
         },
     )
 
@@ -446,11 +494,12 @@ def test_ngo_admin_can_list_only_their_own_aid_workers(
             "adminDisplayName": "Sara Noor",
             "username": "sara-admin",
             "password": "harbor-123",
+            "role": "ngo_admin",
         },
     )
     login_response = client.post(
         "/auth/login",
-        json={"username": "sara-admin", "password": "harbor-123"},
+        json={"username": "sara-admin", "password": "harbor-123", "role": "ngo_admin"},
     )
     other_headers = {"Authorization": f"Bearer {login_response.json()['accessToken']}"}
     client.post(
@@ -460,6 +509,7 @@ def test_ngo_admin_can_list_only_their_own_aid_workers(
             "displayName": "Other Worker",
             "username": "other-worker",
             "password": "worker-pass",
+            "role": "aid_worker",
         },
     )
 

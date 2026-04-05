@@ -5,6 +5,7 @@ import Shell from "../components/Shell";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import { useToast } from "../components/ToastProvider";
 import { describeIdentity, formatSubjectId } from "../utils/identity";
 
 const navItems = [{ to: "/admin", label: "Admin dashboard", end: false, icon: UserRound }];
@@ -15,6 +16,7 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
   const [eligibilityForm, setEligibilityForm] = useState({ status: "pending", notes: "" });
   const [issuanceSession, setIssuanceSession] = useState(null);
   const [status, setStatus] = useState("");
+  const { showToast } = useToast();
 
   const loadEnrollment = async () => {
     try {
@@ -40,8 +42,18 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
       await api.updateProgramEnrollmentEligibility(session.accessToken, id, eligibilityForm);
       await loadEnrollment();
       setStatus("Eligibility updated.");
+      showToast({
+        title: "Cycle decision saved",
+        message: "The beneficiary eligibility state was updated for the current cycle.",
+        tone: "success",
+      });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not update eligibility",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 
@@ -51,8 +63,18 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
       const payload = await api.createIssuanceSession(session.accessToken, Number(id));
       setIssuanceSession(payload);
       setStatus("RefuPass pass created. Print it or save it as a PDF for the beneficiary.");
+      showToast({
+        title: "Beneficiary pass created",
+        message: "The RefuPass PDF/QR pass is ready for printing or download.",
+        tone: "success",
+      });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not create pass",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 

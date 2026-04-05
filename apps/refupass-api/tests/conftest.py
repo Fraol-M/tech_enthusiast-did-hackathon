@@ -91,21 +91,21 @@ def client(tmp_path, monkeypatch):
 
 @pytest.fixture
 def platform_headers(client: TestClient) -> dict[str, str]:
-    response = client.post("/auth/login", json={"username": "admin", "password": "admin123"})
+    response = client.post("/auth/login", json={"username": "admin", "password": "admin123", "role": "platform_admin"})
     token = response.json()["accessToken"]
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def ngo_admin_headers(client: TestClient) -> dict[str, str]:
-    response = client.post("/auth/login", json={"username": "ngoadmin", "password": "ngo123"})
+    response = client.post("/auth/login", json={"username": "ngoadmin", "password": "ngo123", "role": "ngo_admin"})
     token = response.json()["accessToken"]
     return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def worker_headers(client: TestClient) -> dict[str, str]:
-    response = client.post("/auth/login", json={"username": "aidworker", "password": "worker123"})
+    response = client.post("/auth/login", json={"username": "aidworker", "password": "worker123", "role": "aid_worker"})
     token = response.json()["accessToken"]
     return {"Authorization": f"Bearer {token}"}
 

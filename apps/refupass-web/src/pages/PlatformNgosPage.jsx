@@ -4,6 +4,7 @@ import { Building2, ArrowLeft } from "lucide-react";
 import Shell from "../components/Shell";
 import Button from "../components/Button";
 import { api } from "../api/client";
+import { useToast } from "../components/ToastProvider";
 
 const navItems = [
   { to: "/platform", label: "Overview", end: true, icon: Building2 },
@@ -15,6 +16,7 @@ const defaultForm = {
   adminDisplayName: "",
   username: "",
   password: "",
+  role: "ngo_admin",
 };
 
 export default function PlatformNgosPage({ session, onLogout }) {
@@ -24,6 +26,7 @@ export default function PlatformNgosPage({ session, onLogout }) {
   const [statusTone, setStatusTone] = useState("success");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -55,9 +58,19 @@ export default function PlatformNgosPage({ session, onLogout }) {
       setNgos((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
       setForm(defaultForm);
       setStatus(`${created.name} registered with NGO admin ${created.adminDisplayName}.`);
+      showToast({
+        title: "NGO workspace created",
+        message: `${created.name} is ready with an NGO admin account.`,
+        tone: "success",
+      });
     } catch (error) {
       setStatusTone("error");
       setStatus(error.message);
+      showToast({
+        title: "Could not register NGO workspace",
+        message: error.message,
+        tone: "error",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -94,6 +107,10 @@ export default function PlatformNgosPage({ session, onLogout }) {
             <label>
               NGO admin username
               <input name="username" value={form.username} onChange={handleChange} required />
+            </label>
+            <label>
+              Account type
+              <input value="NGO admin" readOnly />
             </label>
             <label>
               Password

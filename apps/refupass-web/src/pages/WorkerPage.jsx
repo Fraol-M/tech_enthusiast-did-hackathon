@@ -4,6 +4,7 @@ import Shell from "../components/Shell";
 import { api } from "../api/client";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
+import { useToast } from "../components/ToastProvider";
 import { extractVerificationInput } from "../utils/verificationInput";
 
 const navItems = [{ to: "/worker", label: "Aid worker console", end: true, icon: ScanSearch }];
@@ -16,6 +17,7 @@ export default function WorkerPage({ session, onLogout }) {
   const [inputStatus, setInputStatus] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
   const [grievance, setGrievance] = useState({ reason: "Verification blocked", details: "" });
+  const { showToast } = useToast();
 
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -36,6 +38,11 @@ export default function WorkerPage({ session, onLogout }) {
       setCredentialMetadata(null);
       setSelectedFileName("");
       setStatus(error.message);
+      showToast({
+        title: "Could not read pass",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 
@@ -47,8 +54,32 @@ export default function WorkerPage({ session, onLogout }) {
         credentialMetadata,
       });
       setResult(payload);
+      if (payload.businessStatus === "already_redeemed") {
+        showToast({
+          title: "Pass already redeemed",
+          message: "This pass has already been used for the current aid cycle.",
+          tone: "warning",
+        });
+      } else if (payload.businessStatus === "valid") {
+        showToast({
+          title: "Pass verified",
+          message: "The beneficiary record is valid and ready for delivery confirmation.",
+          tone: "success",
+        });
+      } else {
+        showToast({
+          title: "Verification needs attention",
+          message: `Gate decision: ${payload.businessStatus.replaceAll("_", " ")}.`,
+          tone: "warning",
+        });
+      }
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not verify pass",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 
@@ -77,8 +108,18 @@ export default function WorkerPage({ session, onLogout }) {
           : current,
       );
       setStatus("Delivery confirmed and redemption recorded.");
+      showToast({
+        title: "Delivery recorded",
+        message: "The current aid cycle was marked as redeemed for this beneficiary.",
+        tone: "success",
+      });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not confirm delivery",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 
@@ -94,8 +135,18 @@ export default function WorkerPage({ session, onLogout }) {
         details: grievance.details,
       });
       setStatus("Grievance opened for follow-up.");
+      showToast({
+        title: "Grievance opened",
+        message: "The case has been recorded for follow-up.",
+        tone: "success",
+      });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not open grievance",
+        message: error.message,
+        tone: "error",
+      });
     }
   };
 

@@ -4,6 +4,7 @@ import { UserPlus, Users2, ArrowLeft } from "lucide-react";
 import Shell from "../components/Shell";
 import Button from "../components/Button";
 import { api } from "../api/client";
+import { useToast } from "../components/ToastProvider";
 
 const navItems = [
   { to: "/admin", label: "Overview", end: true, icon: Users2 },
@@ -14,6 +15,7 @@ const defaultWorkerForm = {
   displayName: "",
   username: "",
   password: "",
+  role: "aid_worker",
 };
 
 export default function AdminWorkersPage({ session, onLogout }) {
@@ -23,6 +25,7 @@ export default function AdminWorkersPage({ session, onLogout }) {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [workerLoading, setWorkerLoading] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -52,8 +55,18 @@ export default function AdminWorkersPage({ session, onLogout }) {
       setAidWorkers((current) => [...current, created].sort((a, b) => a.displayName.localeCompare(b.displayName)));
       setWorkerForm(defaultWorkerForm);
       setStatus(`Aid worker ${created.displayName} added to ${created.ngoName}.`);
+      showToast({
+        title: "Aid worker registered",
+        message: `${created.displayName} can now sign in to the field console.`,
+        tone: "success",
+      });
     } catch (error) {
       setStatus(error.message);
+      showToast({
+        title: "Could not register aid worker",
+        message: error.message,
+        tone: "error",
+      });
     } finally {
       setWorkerLoading(false);
     }
@@ -93,6 +106,10 @@ export default function AdminWorkersPage({ session, onLogout }) {
               <label>
                 Username
                 <input name="username" value={workerForm.username} onChange={handleWorkerChange} required />
+              </label>
+              <label>
+                Account type
+                <input value="Aid worker" readOnly />
               </label>
               <label>
                 Password

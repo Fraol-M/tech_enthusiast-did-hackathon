@@ -18,7 +18,7 @@ from .models import User
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+password_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
 
 def get_password_hash(password: str) -> str:
