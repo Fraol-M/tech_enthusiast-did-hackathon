@@ -50,6 +50,26 @@ DEMO_IDENTITIES: tuple[dict[str, str], ...] = (
 )
 
 
-def get_available_demo_identities(verified_subjects: Iterable[str | None]) -> list[dict[str, str]]:
+def normalize_demo_match(value: str | None) -> str:
+    return " ".join((value or "").strip().lower().split())
+
+
+def get_available_demo_identities(
+    verified_subjects: Iterable[str | None],
+    verified_name_settlements: Iterable[tuple[str | None, str | None]] = (),
+) -> list[dict[str, str]]:
     verified = {subject for subject in verified_subjects if subject}
-    return [identity for identity in DEMO_IDENTITIES if identity["individual_id"] not in verified]
+    verified_pairs = {
+        (normalize_demo_match(full_name), normalize_demo_match(settlement))
+        for full_name, settlement in verified_name_settlements
+    }
+    return [
+        identity
+        for identity in DEMO_IDENTITIES
+        if identity["individual_id"] not in verified
+        and (
+            normalize_demo_match(identity["full_name"]),
+            normalize_demo_match(identity["settlement"]),
+        )
+        not in verified_pairs
+    ]

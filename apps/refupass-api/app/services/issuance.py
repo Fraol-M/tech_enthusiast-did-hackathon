@@ -12,9 +12,9 @@ from .pass_tokens import attach_signature
 
 def build_issuance_instructions() -> list[str]:
     return [
-        "RefuPass has issued a pass for the already-verified eligible person.",
+        "RefuProof has issued a pass for the already-verified eligible person.",
         "Open the pass, then print it or save it as a PDF for the beneficiary.",
-        "Aid workers will verify and redeem this pass directly in RefuPass.",
+        "Aid workers will verify and redeem this pass directly in RefuProof.",
     ]
 
 
@@ -24,7 +24,7 @@ def build_external_wallet_flow(settings: Settings) -> ExternalWalletFlow:
         label="Continue in wallet popup",
         url=settings.inji_web_url,
         requires_identity_reauthentication=True,
-        note="This local Inji setup still uses the wallet's authorization-code flow. RefuPass will track popup progress, but the wallet flow may still ask the holder to authenticate again.",
+        note="This local Inji setup still uses the wallet's authorization-code flow. RefuProof will track popup progress, but the wallet flow may still ask the holder to authenticate again.",
     )
 
 

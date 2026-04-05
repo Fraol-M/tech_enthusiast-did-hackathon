@@ -15,8 +15,8 @@ export default function HomePage({ session }) {
       {/* Navigation */}
       <nav className="elegant-nav elegant-nav--light">
         <div className="elegant-nav-brand">
-          <img src="/refupass-mark.svg" alt="RefuPass" className="elegant-nav-logo" />
-          <span className="elegant-brand-text">RefuPass</span>
+          <img src="/refupass-mark.svg" alt="RefuProof" className="elegant-nav-logo" />
+          <span className="elegant-brand-text">RefuProof</span>
         </div>
         <div className="elegant-nav-links">
           {session ? (
@@ -142,8 +142,8 @@ export default function HomePage({ session }) {
       {/* Footer */}
       <footer className="elegant-footer">
         <div className="footer-content">
-          <img src="/refupass-mark.svg" alt="RefuPass" style={{height: 28, marginBottom: '1rem', opacity: 0.5}} />
-          <p>© 2026 RefuPass Humanitarian Trust. All Rights Reserved.</p>
+          <img src="/refupass-mark.svg" alt="RefuProof" style={{height: 28, marginBottom: '1rem', opacity: 0.5}} />
+          <p>© 2026 RefuProof Humanitarian Trust. All Rights Reserved.</p>
         </div>
       </footer>
     </div>

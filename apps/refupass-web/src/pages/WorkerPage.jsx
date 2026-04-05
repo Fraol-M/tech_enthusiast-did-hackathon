@@ -165,11 +165,11 @@ export default function WorkerPage({ session, onLogout }) {
           <div className="section-heading">
             <div>
               <p className="eyebrow">Verification input</p>
-              <h3>RefuPass pass</h3>
+              <h3>RefuProof pass</h3>
             </div>
           </div>
           <p className="panel-copy">
-            Upload the beneficiary's RefuPass PDF or mobile pass image from the gate.
+            Upload the beneficiary's RefuProof PDF or mobile pass image from the gate.
           </p>
           <div className="card-actions">
             <label className="button button-secondary button-md file-button">
@@ -245,7 +245,7 @@ export default function WorkerPage({ session, onLogout }) {
               {["refupass_pass_qr", "printable_pass_qr"].includes(result.verificationMode) ? (
                 <p className="panel-copy">
                   {result.verificationMode === "refupass_pass_qr"
-                    ? "Verified from a RefuPass-issued QR or PDF."
+                    ? "Verified from a RefuProof-issued QR or PDF."
                     : "Legacy printable pass format detected."}
                 </p>
               ) : null}

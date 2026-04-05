@@ -79,7 +79,7 @@ class ESignetVerificationService:
                 raise RuntimeError("Could not fetch the eSignet CSRF token.")
 
             headers = {"X-XSRF-TOKEN": csrf_token}
-            last_error_message = "Could not create the eSignet client for RefuPass verification."
+            last_error_message = "Could not create the eSignet client for RefuProof verification."
             max_attempts = 5
             for _ in range(max_attempts):
                 client_id, private_key_pem, public_jwk = _generate_client_material()
@@ -174,7 +174,7 @@ class ESignetVerificationService:
                     }
 
             raise RuntimeError(
-                "Could not create a browser-usable eSignet client for RefuPass verification. "
+                "Could not create a browser-usable eSignet client for RefuProof verification. "
                 f"eSignet said: {last_error_message}"
             )
 

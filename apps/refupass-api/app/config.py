@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "RefuPass API"
+    app_name: str = "RefuProof API"
     database_url: str = "sqlite:///./refupass.db"
     allowed_origins: str = "http://localhost:5173,http://localhost:4173"
     inji_verify_mode: str = "stub"
@@ -25,12 +25,12 @@ class Settings(BaseSettings):
     esignet_ui_url: str = "http://localhost:3000"
     esignet_api_url: str = "http://localhost:8088"
     esignet_callback_url: str = "http://127.0.0.1:8000/platform/identity/esignet/callback"
-    esignet_client_name: str = "RefuPass Platform Verification"
+    esignet_client_name: str = "RefuProof Platform Verification"
     esignet_client_logo_url: str = "https://example.com/refupass-logo.png"
     pass_signing_secret: str = "refupass-demo-pass-signing-secret"
     platform_admin_username: str = "admin"
     platform_admin_password: str = "admin123"
-    platform_admin_display_name: str = "RefuPass Platform Admin"
+    platform_admin_display_name: str = "RefuProof Platform Admin"
     jwt_access_secret_key: str = "refupass-dev-access-secret-change-me"
     jwt_refresh_secret_key: str = "refupass-dev-refresh-secret-change-me"
     jwt_algorithm: str = "HS256"

@@ -19,7 +19,7 @@ const defaultForm = {
 };
 
 export default function PersonEnrollmentCreatePage({ session, onLogout }) {
-  const ngoName = session.ngoName || "RefuPass NGO";
+  const ngoName = session.ngoName || "RefuProof NGO";
   const navigate = useNavigate();
   const [people, setPeople] = useState([]);
   const [programs, setPrograms] = useState([]);

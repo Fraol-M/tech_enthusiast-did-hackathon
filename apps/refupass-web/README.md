@@ -1,6 +1,6 @@
-# RefuPass Web
+# RefuProof Web
 
-React frontend for the RefuPass platform.
+React frontend for the RefuProof platform.
 
 ## Surfaces
 

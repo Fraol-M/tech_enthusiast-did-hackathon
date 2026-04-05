@@ -11,7 +11,7 @@ const navItems = [
 ];
 
 export default function AdminDeliveriesPage({ session, onLogout }) {
-  const ngoName = session.ngoName || "RefuPass NGO";
+  const ngoName = session.ngoName || "RefuProof NGO";
   const [redemptions, setRedemptions] = useState([]);
   const [grievances, setGrievances] = useState([]);
   const [status, setStatus] = useState("");

@@ -241,7 +241,7 @@ export default function PlatformPeoplePage({ session, onLogout }) {
               </label>
             </div>
             <p className="panel-copy">
-              RefuPass will generate the household reference and use the verified person as the default primary contact.
+              RefuProof will generate the household reference and use the verified person as the default primary contact.
             </p>
             <div className="demo-identities-card">
               <div className="section-heading">
@@ -271,7 +271,7 @@ export default function PlatformPeoplePage({ session, onLogout }) {
                   </>
                 ) : (
                   <p className="panel-copy">
-                    All demo identities have already been verified in RefuPass.
+                    All demo identities have already been verified in RefuProof.
                   </p>
                 )
               ) : (

@@ -1,1 +1,1 @@
-"""Service helpers for RefuPass API."""
+"""Service helpers for RefuProof API."""

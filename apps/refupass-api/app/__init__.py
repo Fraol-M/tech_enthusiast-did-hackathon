@@ -1,1 +1,1 @@
-"""RefuPass API package."""
+"""RefuProof API package."""

@@ -62,10 +62,10 @@ export default function AdminRosterPage({ session, onLogout }) {
     try {
       const sessionPayload = await api.createIssuanceSession(session.accessToken, programEnrollmentId);
       setIssuanceSession(sessionPayload);
-      setStatus("RefuPass pass created. Open it, then print it or save it as a PDF.");
+      setStatus("RefuProof pass created. Open it, then print it or save it as a PDF.");
       showToast({
         title: "Beneficiary pass created",
-        message: "The latest RefuPass pass is ready for printing or download.",
+        message: "The latest RefuProof pass is ready for printing or download.",
         tone: "success",
       });
     } catch (error) {
@@ -114,7 +114,7 @@ export default function AdminRosterPage({ session, onLogout }) {
       {issuanceSession ? (
         <section className="panel-card session-panel">
           <div className="session-panel-copy">
-            <p className="eyebrow">Latest RefuPass pass</p>
+            <p className="eyebrow">Latest RefuProof pass</p>
             <h3>{issuanceSession.credentialPreview.fullName}</h3>
             <p className="panel-copy">
               Pass ready for download, printing, or sharing as a PDF with the beneficiary.

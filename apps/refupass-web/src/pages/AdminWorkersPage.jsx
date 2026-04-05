@@ -19,7 +19,7 @@ const defaultWorkerForm = {
 };
 
 export default function AdminWorkersPage({ session, onLogout }) {
-  const ngoName = session.ngoName || "RefuPass NGO";
+  const ngoName = session.ngoName || "RefuProof NGO";
   const [aidWorkers, setAidWorkers] = useState([]);
   const [workerForm, setWorkerForm] = useState(defaultWorkerForm);
   const [status, setStatus] = useState("");

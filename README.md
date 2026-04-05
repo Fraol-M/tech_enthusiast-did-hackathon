@@ -1,6 +1,6 @@
-# RefuPass
+# RefuProof
 
-RefuPass is a humanitarian aid access prototype for refugee-serving organizations. It verifies a beneficiary through `eSignet`, stores the verified person in a shared registry, lets NGOs enroll them into aid programs, issues a secure `PDF/QR pass`, and lets aid workers verify and redeem that pass at distribution time.
+RefuProof is a humanitarian aid access prototype for refugee-serving organizations. It verifies a beneficiary through `eSignet`, stores the verified person in a shared registry, lets NGOs enroll them into aid programs, issues a secure `PDF/QR pass`, and lets aid workers verify and redeem that pass at distribution time.
 
 ## Why We Moved Away From Inji
 
@@ -13,10 +13,10 @@ The first version of this project tried to use the full `Inji Web -> Mimoto -> C
 The current main flow is:
 
 1. verify identity through `eSignet`
-2. add the verified person to RefuPass
+2. add the verified person to RefuProof
 3. enroll them into an NGO program
-4. issue a `RefuPass-native PDF/QR pass`
-5. verify and redeem the pass in RefuPass
+4. issue a `RefuProof-native PDF/QR pass`
+5. verify and redeem the pass in RefuProof
 
 The older Inji-related work remains in `Experiments/` for research and future interoperability, but it is not the main beneficiary path.
 
@@ -218,10 +218,10 @@ Seeded demo accounts may also exist depending on DB state:
 
 1. Platform admin starts identity verification
 2. Beneficiary verifies through `eSignet`
-3. RefuPass adds the person to the shared registry
+3. RefuProof adds the person to the shared registry
 4. NGO admin enrolls the person into a program
 5. NGO admin marks them eligible
-6. RefuPass issues a `PDF/QR pass`
+6. RefuProof issues a `PDF/QR pass`
 7. Aid worker verifies and redeems that pass
 
 ## Offline Support Direction
@@ -231,7 +231,7 @@ The current hosted prototype is online-first, but the intended field model is:
 - one `local field node` at the distribution site
 - multiple aid worker devices connected to it over local Wi-Fi/LAN
 - all verifications and redemptions checked against the same local site ledger
-- later sync back to the central RefuPass server when connectivity returns
+- later sync back to the central RefuProof server when connectivity returns
 
 Why this matters:
 
@@ -242,7 +242,7 @@ Why this matters:
 ## Deployment Shape Used In Practice
 
 - frontend on Vercel
-- RefuPass API on a Linux server
+- RefuProof API on a Linux server
 - eSignet on the same Linux server via Docker Compose
 
 Example hostnames used in this project:
@@ -257,7 +257,7 @@ Backend tests:
 
 ```bash
 cd apps/refupass-api
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PLATFORM_ADMIN_USERNAME=admin PLATFORM_ADMIN_PASSWORD=admin123 PLATFORM_ADMIN_DISPLAY_NAME="RefuPass Platform Admin" pytest
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PLATFORM_ADMIN_USERNAME=admin PLATFORM_ADMIN_PASSWORD=admin123 PLATFORM_ADMIN_DISPLAY_NAME="RefuProof Platform Admin" pytest
 ```
 
 Frontend build:

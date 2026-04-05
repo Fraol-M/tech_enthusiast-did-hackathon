@@ -4,7 +4,7 @@ import Button from "./Button";
 import { getRoleLabel } from "../utils/roles";
 
 export default function Shell({ session, onLogout, title, subtitle, navItems, children, aside }) {
-  const workspaceLabel = session?.role === "platform_admin" ? "RefuPass Platform" : session?.ngoName || "RefuPass NGO";
+  const workspaceLabel = session?.role === "platform_admin" ? "RefuProof Platform" : session?.ngoName || "RefuProof NGO";
   const headerKicker =
     session.role === "platform_admin"
       ? "Platform administration"
@@ -17,11 +17,11 @@ export default function Shell({ session, onLogout, title, subtitle, navItems, ch
       <aside className="sidebar">
         <div className="brand-block">
           <div className="brand-mark-wrap">
-            <img src="/refupass-mark.svg" alt="RefuPass" className="brand-mark" />
+            <img src="/refupass-mark.svg" alt="RefuProof" className="brand-mark" />
           </div>
           <div className="brand-copy">
             <p className="eyebrow">Operations</p>
-            <h1>RefuPass</h1>
+            <h1>RefuProof</h1>
             <p className="brand-subtitle">Food aid control</p>
           </div>
         </div>
@@ -60,7 +60,7 @@ export default function Shell({ session, onLogout, title, subtitle, navItems, ch
       <main className="main-panel">
         <header className="page-header">
           <div>
-            <p className="eyebrow">RefuPass</p>
+            <p className="eyebrow">RefuProof</p>
             <h2>{title}</h2>
             {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
           </div>

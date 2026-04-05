@@ -149,5 +149,5 @@ export async function extractVerificationInput(file) {
     return decodeQrFromImageFile(file);
   }
 
-  throw new Error("Upload a RefuPass PDF or a mobile pass image.");
+  throw new Error("Upload a RefuProof PDF or a mobile pass image.");
 }

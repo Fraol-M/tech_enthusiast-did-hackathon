@@ -62,10 +62,10 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
     try {
       const payload = await api.createIssuanceSession(session.accessToken, Number(id));
       setIssuanceSession(payload);
-      setStatus("RefuPass pass created. Print it or save it as a PDF for the beneficiary.");
+      setStatus("RefuProof pass created. Print it or save it as a PDF for the beneficiary.");
       showToast({
         title: "Beneficiary pass created",
-        message: "The RefuPass PDF/QR pass is ready for printing or download.",
+        message: "The RefuProof PDF/QR pass is ready for printing or download.",
         tone: "success",
       });
     } catch (error) {
@@ -215,7 +215,7 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
       <section className="panel-card">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">RefuPass issuance</p>
+            <p className="eyebrow">RefuProof issuance</p>
             <h3>Generate beneficiary pass</h3>
           </div>
           <div className="card-actions">
@@ -240,7 +240,7 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
         {issuanceSession ? (
           <div className="issuance-panel">
             <div className="status-banner success">
-              RefuPass has generated the beneficiary pass for this eligible enrollment.
+              RefuProof has generated the beneficiary pass for this eligible enrollment.
             </div>
             <div className="detail-grid">
               <div>
@@ -284,7 +284,7 @@ export default function ProgramEnrollmentDetailPage({ session, onLogout }) {
               ))}
             </ol>
             <p className="panel-copy">
-              Open the pass, then print it or save it as a PDF. Aid workers will verify the QR or uploaded PDF directly in RefuPass.
+              Open the pass, then print it or save it as a PDF. Aid workers will verify the QR or uploaded PDF directly in RefuProof.
             </p>
           </div>
         ) : (

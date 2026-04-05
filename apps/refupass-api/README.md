@@ -1,6 +1,6 @@
-# RefuPass API
+# RefuProof API
 
-FastAPI backend for the RefuPass platform.
+FastAPI backend for the RefuProof platform.
 
 ## What it handles
 
@@ -70,4 +70,4 @@ Available mock identities:
 - `Sami Bekele` -> `5555444433`
 - `Nura Ali` -> `7777888899`
 
-Use `Nura Ali` in the RefuPass Web platform UI when you want to test adding a new person through eSignet without colliding with the two people already seeded in RefuPass.
+Use `Nura Ali` in the RefuProof Web platform UI when you want to test adding a new person through eSignet without colliding with the two people already seeded in RefuProof.

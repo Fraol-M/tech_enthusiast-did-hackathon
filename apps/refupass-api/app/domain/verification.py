@@ -52,7 +52,7 @@ def parse_verification_payload(request) -> tuple[dict[str, Any] | str, str]:
 
     raise HTTPException(
         status_code=400,
-        detail="Verification payload must be Verifiable Credential JSON, a credential QR string, or a RefuPass pass QR payload",
+        detail="Verification payload must be Verifiable Credential JSON, a credential QR string, or a RefuProof pass QR payload",
     )
 
 

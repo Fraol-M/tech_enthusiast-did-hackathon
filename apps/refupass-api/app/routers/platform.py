@@ -15,7 +15,7 @@ from ..demo_identities import DEMO_IDENTITIES, get_available_demo_identities
 from ..domain.operations import generate_reference
 from ..domain.operations import create_household_from_payload, create_or_reuse_person
 from ..domain.serializers import serialize_identity_verification_session, serialize_platform_ngo
-from ..models import IdentityVerificationSession, Ngo, Person, Program, User
+from ..models import Household, IdentityVerificationSession, Ngo, Person, Program, User
 from ..schemas import (
     AdminRegisterRequest,
     DemoIdentityAvailabilityResponse,
@@ -36,7 +36,12 @@ def get_demo_identity_availability(
     db: Session = Depends(get_db),
 ) -> DemoIdentityAvailabilityResponse:
     verified_subjects = db.scalars(select(Person.auth_subject).where(Person.auth_subject.is_not(None))).all()
-    remaining = get_available_demo_identities(verified_subjects)
+    verified_people = db.execute(
+        select(Person.full_name, Household.settlement)
+        .join(Household, Household.id == Person.household_id, isouter=True)
+        .where(Person.identity_status == "verified_digital")
+    ).all()
+    remaining = get_available_demo_identities(verified_subjects, verified_people)
     return DemoIdentityAvailabilityResponse(
         total_count=len(DEMO_IDENTITIES),
         remaining_count=len(remaining),
@@ -132,7 +137,7 @@ async def start_identity_verification(
         raise HTTPException(
             status_code=503,
             detail=(
-                "RefuPass could not reach the local eSignet stack. "
+                "RefuProof could not reach the local eSignet stack. "
                 f"Expected UI at {runtime.settings.esignet_ui_url} and API at {runtime.settings.esignet_api_url}. "
                 "Start Experiments/esignet-compose before verifying a person."
             ),
@@ -177,13 +182,13 @@ async def complete_identity_verification(
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     if not state:
-        return HTMLResponse("<h1>RefuPass verification failed</h1><p>Missing state.</p>", status_code=400)
+        return HTMLResponse("<h1>RefuProof verification failed</h1><p>Missing state.</p>", status_code=400)
 
     verification_session = db.scalar(
         select(IdentityVerificationSession).where(IdentityVerificationSession.state == state)
     )
     if not verification_session:
-        return HTMLResponse("<h1>RefuPass verification failed</h1><p>Unknown verification session.</p>", status_code=404)
+        return HTMLResponse("<h1>RefuProof verification failed</h1><p>Unknown verification session.</p>", status_code=404)
 
     if error:
         verification_session.status = "failed"
@@ -200,7 +205,7 @@ async def complete_identity_verification(
         verification_session.error_message = "Missing authorization code"
         verification_session.completed_at = datetime.now(timezone.utc)
         db.commit()
-        return HTMLResponse("<h1>RefuPass verification failed</h1><p>Missing authorization code.</p>", status_code=400)
+        return HTMLResponse("<h1>RefuProof verification failed</h1><p>Missing authorization code.</p>", status_code=400)
 
     try:
         verified_identity = await runtime.esignet_service.complete_verification(
@@ -256,6 +261,6 @@ async def complete_identity_verification(
         verification_session.completed_at = datetime.now(timezone.utc)
         db.commit()
         return HTMLResponse(
-            "<h1>RefuPass verification failed</h1><p>Check the platform dashboard for details.</p>",
+            "<h1>RefuProof verification failed</h1><p>Check the platform dashboard for details.</p>",
             status_code=500,
         )

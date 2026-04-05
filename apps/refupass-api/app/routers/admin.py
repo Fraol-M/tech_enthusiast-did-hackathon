@@ -359,7 +359,7 @@ def update_issuance_session_status(
 
     issuance_session, enrollment = get_issuance_session_for_ngo_or_404(db, session_token, user.ngo_id)
     if issuance_session.status not in {"pass_ready", "pass_downloaded"}:
-        raise HTTPException(status_code=400, detail="Issuance session can no longer be updated from the RefuPass pass flow")
+        raise HTTPException(status_code=400, detail="Issuance session can no longer be updated from the RefuProof pass flow")
 
     issuance_session.status = payload.status
     db.commit()

@@ -68,8 +68,8 @@ export default function LoginPage({ onLogin }) {
         <div className="login-hero__overlay"></div>
         <div className="login-hero__content">
           <Link to="/" className="login-hero__brand">
-            <img src="/refupass-mark.svg" alt="RefuPass" className="login-hero__logo" />
-            <span>RefuPass</span>
+            <img src="/refupass-mark.svg" alt="RefuProof" className="login-hero__logo" />
+            <span>RefuProof</span>
           </Link>
           <div className="login-hero__tagline">
             <h1>Dignity in<br/>Verification.</h1>

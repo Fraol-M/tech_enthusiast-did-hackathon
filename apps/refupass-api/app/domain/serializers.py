@@ -85,7 +85,7 @@ def serialize_staff_user(user) -> StaffUserResponse:
         username=user.username,
         role=user.role,
         display_name=user.display_name,
-        ngo_name=user.ngo.name if user.ngo else "RefuPass Platform",
+        ngo_name=user.ngo.name if user.ngo else "RefuProof Platform",
     )
 
 

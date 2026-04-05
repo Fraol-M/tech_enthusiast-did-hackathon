@@ -39,7 +39,7 @@ async function buildMobilePassImage(printablePass, qrDataUrl) {
 
   context.fillStyle = "#ffffff";
   context.font = "700 54px Georgia, serif";
-  context.fillText("RefuPass", 72, 96);
+  context.fillText("RefuProof", 72, 96);
   context.font = "400 30px Arial, sans-serif";
   context.fillText("Beneficiary mobile pass", 72, 148);
 
@@ -84,7 +84,7 @@ async function buildMobilePassImage(printablePass, qrDataUrl) {
 
   context.fillStyle = "#7a6f61";
   context.font = "400 24px Arial, sans-serif";
-  context.fillText("Show this screen or the PDF at the gate for RefuPass verification.", 96, 1760);
+  context.fillText("Show this screen or the PDF at the gate for RefuProof verification.", 96, 1760);
 
   return canvas.toDataURL("image/png");
 }
@@ -105,7 +105,7 @@ function downloadPassPdf(printablePass, qrDataUrl) {
   pdf.setTextColor(255, 255, 255);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(24);
-  pdf.text("RefuPass", 44, 44);
+  pdf.text("RefuProof", 44, 44);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(12);
   pdf.text("Beneficiary pass", 44, 66);
@@ -152,7 +152,7 @@ function downloadPassPdf(printablePass, qrDataUrl) {
   pdf.setTextColor(122, 111, 97);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10);
-  pdf.text("Show this PDF or a printed copy at the gate for RefuPass verification.", 56, pageHeight - 72);
+  pdf.text("Show this PDF or a printed copy at the gate for RefuProof verification.", 56, pageHeight - 72);
 
   pdf.save(`${buildFileStem(printablePass)}.pdf`);
 }
@@ -175,7 +175,7 @@ export default function PrintablePassPage({ session, onLogout }) {
           return;
         }
         if (!sessionToken) {
-          setStatus("Create a RefuPass pass from the enrollment record before opening this page.");
+          setStatus("Create a RefuProof pass from the enrollment record before opening this page.");
           return;
         }
         const payload = await api.getIssuancePass(session.accessToken, sessionToken);
@@ -205,7 +205,7 @@ export default function PrintablePassPage({ session, onLogout }) {
     <Shell
       session={session}
       onLogout={onLogout}
-      title="RefuPass pass"
+      title="RefuProof pass"
       subtitle="Print it, save it as a PDF, or generate a mobile pass for the beneficiary."
       navItems={navItems}
       aside={<Button as={Link} variant="secondary" to={`/admin/enrollments/${id}`}>Back to record</Button>}
@@ -215,7 +215,7 @@ export default function PrintablePassPage({ session, onLogout }) {
         <section className="print-card panel-card">
           <div className="print-card-header">
             <div>
-              <p className="eyebrow">RefuPass-issued pass</p>
+              <p className="eyebrow">RefuProof-issued pass</p>
               <h3>{printablePass.fullName}</h3>
               <p>{[printablePass.personCode, printablePass.enrollmentCode].filter(Boolean).join(" • ")}</p>
             </div>
@@ -294,7 +294,7 @@ export default function PrintablePassPage({ session, onLogout }) {
           {downloadStatus ? <p className="panel-copy">{downloadStatus}</p> : null}
         </section>
       ) : (
-        <section className="panel-card">Create a RefuPass pass from the enrollment record first.</section>
+        <section className="panel-card">Create a RefuProof pass from the enrollment record first.</section>
       )}
     </Shell>
   );

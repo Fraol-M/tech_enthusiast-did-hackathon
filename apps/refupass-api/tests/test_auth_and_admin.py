@@ -21,7 +21,7 @@ def test_login_returns_access_and_refresh_tokens(client: TestClient) -> None:
     payload = response.json()
     assert payload["role"] == "platform_admin"
     assert payload["roleLabel"] == "Platform admin"
-    assert payload["displayName"] == "RefuPass Platform Admin"
+    assert payload["displayName"] == "RefuProof Platform Admin"
     assert payload["ngoName"] is None
     assert isinstance(payload["accessToken"], str)
     assert isinstance(payload["refreshToken"], str)
@@ -391,6 +391,34 @@ def test_demo_identity_list_updates_after_live_verification(
     assert after_response.status_code == 200
     assert after_response.json()["remainingCount"] == before_response.json()["remainingCount"] - 1
     assert all(identity["individualId"] != "7777888899" for identity in after_response.json()["suggested"])
+
+
+def test_demo_identity_list_hides_live_verified_person_even_with_nonmatching_auth_subject(
+    client: TestClient,
+    platform_headers: dict[str, str],
+) -> None:
+    # Simulate a live eSignet-style opaque subject while keeping Nura verified in the registry.
+    verification_response = client.post(
+        "/platform/identity-verifications",
+        headers=platform_headers,
+        json={
+            "fullName": "Nura Ali",
+            "phone": "+251900123456",
+            "gender": "female",
+            "familySize": 3,
+            "settlement": "Kebribeyah Camp",
+        },
+    )
+    session_token = verification_response.json()["sessionToken"]
+    client.get(
+        "/platform/identity/esignet/callback",
+        params={"code": "opaque-live-subject-123", "state": f"state-{session_token}"},
+    )
+
+    response = client.get("/platform/demo-identities", headers=platform_headers)
+
+    assert response.status_code == 200
+    assert all(identity["fullName"] != "Nura Ali" for identity in response.json()["suggested"])
 
 
 def test_new_person_enrollment_creates_program_enrollment_for_dashboard(
