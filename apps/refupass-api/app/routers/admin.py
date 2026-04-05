@@ -20,6 +20,7 @@ from ..domain.operations import (
 from ..domain.serializers import (
     serialize_issuance_session,
     serialize_person,
+    serialize_program,
     serialize_program_enrollment,
     serialize_program_enrollment_detail,
     serialize_staff_user,
@@ -35,6 +36,7 @@ from ..schemas import (
     IssuanceSessionStatusUpdate,
     PersonSummary,
     PrintablePass,
+    ProgramSummary,
     ProgramEnrollmentCreate,
     ProgramEnrollmentDetail,
     ProgramEnrollmentSummary,
@@ -117,6 +119,20 @@ def list_people(
     return [serialize_person(person) for person in people]
 
 
+@router.get("/programs", response_model=list[ProgramSummary])
+def list_programs(
+    user: User = Depends(require_role("ngo_admin")),
+    db: Session = Depends(get_db),
+) -> list[ProgramSummary]:
+    programs = db.scalars(
+        select(Program)
+        .options(joinedload(Program.ngo))
+        .where(Program.ngo_id == user.ngo_id, Program.is_active.is_(True))
+        .order_by(Program.name.asc())
+    ).all()
+    return [serialize_program(program) for program in programs]
+
+
 @router.get("/program-enrollments", response_model=list[ProgramEnrollmentSummary])
 def list_program_enrollments(
     search: str | None = None,
@@ -157,20 +173,39 @@ def create_program_enrollment(
     db: Session = Depends(get_db),
 ) -> ProgramEnrollmentSummary:
     person = get_person_or_404(db, payload.person_id)
-    program = get_or_create_program(
-        db,
-        ngo_id=user.ngo_id,
-        name=payload.program_name,
-        assistance_type=payload.assistance_type,
-        distribution_site=payload.distribution_site,
-        ration_tier=payload.ration_tier,
-    )
+    if payload.program_id:
+        program = db.scalar(
+            select(Program)
+            .options(joinedload(Program.ngo))
+            .where(Program.id == payload.program_id, Program.ngo_id == user.ngo_id)
+        )
+        if not program:
+            raise HTTPException(status_code=404, detail="Program not found")
+    else:
+        if not payload.program_name:
+            raise HTTPException(status_code=400, detail="Program name is required when no existing program is selected")
+        program = get_or_create_program(
+            db,
+            ngo_id=user.ngo_id,
+            name=payload.program_name,
+            assistance_type=payload.assistance_type,
+            distribution_site=payload.distribution_site,
+            ration_tier=payload.ration_tier,
+        )
+
+    distribution_site = payload.distribution_site or program.default_distribution_site
+    ration_tier = payload.ration_tier or program.default_ration_tier
+    if not distribution_site or not ration_tier:
+        raise HTTPException(
+            status_code=400,
+            detail="Distribution site and ration tier are required before enrollment can be created",
+        )
     enrollment = create_or_reuse_program_enrollment(
         db,
         person=person,
         program=program,
-        distribution_site=payload.distribution_site,
-        ration_tier=payload.ration_tier,
+        distribution_site=distribution_site,
+        ration_tier=ration_tier,
         created_by_user_id=user.id,
         notes=payload.notes,
     )

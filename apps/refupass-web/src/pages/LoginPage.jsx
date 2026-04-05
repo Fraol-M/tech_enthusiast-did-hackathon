@@ -1,41 +1,13 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
-import { ArrowRight, ShieldCheck, User, Users, Shield } from "lucide-react";
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { api } from "../api/client";
-
-const ROLE_META = {
-  platform_admin: {
-    label: "Platform Admin",
-    description: "Global oversight & system management",
-    icon: Shield,
-  },
-  ngo_admin: {
-    label: "NGO Admin",
-    description: "Camp operations & enrollment management",
-    icon: Users,
-  },
-  aid_worker: {
-    label: "Aid Worker",
-    description: "Field verification & delivery confirmation",
-    icon: User,
-  },
-};
 
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const preselect = location.state?.preselect || "ngo_admin";
-  
-  const [mode, setMode] = useState(preselect);
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (location.state?.preselect) {
-      setMode(location.state.preselect);
-    }
-  }, [location.state]);
 
   const handleChange = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -59,9 +31,6 @@ export default function LoginPage({ onLogin }) {
       setLoading(false);
     }
   };
-
-  const currentRole = ROLE_META[mode];
-  const CurrentIcon = currentRole.icon;
 
   return (
     <div className="login-layout">
@@ -87,31 +56,7 @@ export default function LoginPage({ onLogin }) {
               <ShieldCheck size={24} strokeWidth={1.5} />
             </div>
             <h2>Secure Access</h2>
-            <p>Sign in to your workspace</p>
-          </div>
-
-          {/* Role selector */}
-          <div className="login-role-selector">
-            {Object.entries(ROLE_META).map(([key, meta]) => {
-              const Icon = meta.icon;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={`login-role-option ${mode === key ? "active" : ""}`}
-                  onClick={() => { setMode(key); setError(""); }}
-                >
-                  <Icon size={18} strokeWidth={1.5} />
-                  <span>{meta.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Active role description */}
-          <div className="login-role-description">
-            <CurrentIcon size={16} strokeWidth={2} />
-            <span>{currentRole.description}</span>
+            <p>Sign in with your assigned RefuPass account</p>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">

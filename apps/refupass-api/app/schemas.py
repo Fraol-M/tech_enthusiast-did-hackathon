@@ -140,9 +140,9 @@ class IdentityVerificationStartRequest(ApiModel):
     full_name: str
     phone: str | None = None
     gender: str | None = None
-    household_code: str
+    household_code: str | None = None
     family_size: int
-    primary_contact_name: str
+    primary_contact_name: str | None = None
     settlement: str
 
 
@@ -187,10 +187,11 @@ class AidWorkerCreate(ApiModel):
 
 class ProgramEnrollmentCreate(ApiModel):
     person_id: int
-    program_name: str
+    program_id: int | None = None
+    program_name: str | None = None
     assistance_type: str = "food"
-    distribution_site: str
-    ration_tier: str
+    distribution_site: str | None = None
+    ration_tier: str | None = None
     notes: str | None = None
 
 

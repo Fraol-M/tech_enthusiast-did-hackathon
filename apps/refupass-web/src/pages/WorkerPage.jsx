@@ -14,6 +14,7 @@ export default function WorkerPage({ session, onLogout }) {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("");
   const [inputStatus, setInputStatus] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
   const [grievance, setGrievance] = useState({ reason: "Verification blocked", details: "" });
 
   const handleFileUpload = async (event) => {
@@ -23,13 +24,17 @@ export default function WorkerPage({ session, onLogout }) {
     }
     setStatus("");
     setInputStatus("");
+    setResult(null);
     try {
       const payload = await extractVerificationInput(file);
       setCredentialText(payload.credentialText);
       setCredentialMetadata(payload.credentialMetadata);
       setInputStatus(payload.sourceLabel);
+      setSelectedFileName(file.name);
     } catch (error) {
+      setCredentialText("");
       setCredentialMetadata(null);
+      setSelectedFileName("");
       setStatus(error.message);
     }
   };
@@ -113,29 +118,38 @@ export default function WorkerPage({ session, onLogout }) {
             </div>
           </div>
           <p className="panel-copy">
-            Paste the QR payload or upload a RefuPass PDF, QR image, or structured export from the gate.
+            Upload the beneficiary's RefuPass PDF or mobile pass image from the gate.
           </p>
-          <textarea
-            className="credential-textarea"
-            placeholder="Paste a RefuPass QR payload or upload PDF/PNG/JSON/TXT"
-            value={credentialText}
-            onChange={(event) => {
-              setCredentialText(event.target.value);
-              setCredentialMetadata(null);
-            }}
-          />
           <div className="card-actions">
             <label className="button button-secondary button-md file-button">
               <Upload size={16} strokeWidth={2.2} />
-              Upload PDF/PNG/JSON/TXT
-              <input type="file" accept="application/pdf,application/json,text/plain,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp,.json,.txt" onChange={handleFileUpload} hidden />
+              Upload PDF or image
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
+                onChange={handleFileUpload}
+                hidden
+              />
             </label>
             <Button type="button" onClick={handleVerify} disabled={!credentialText.trim()}>
               <QrCode size={16} strokeWidth={2.2} />
               Verify pass
             </Button>
           </div>
-          {inputStatus ? <p className="panel-copy">{inputStatus}</p> : null}
+          {selectedFileName ? (
+            <div className="detail-grid">
+              <div>
+                <span>Loaded file</span>
+                <strong>{selectedFileName}</strong>
+              </div>
+              <div>
+                <span>Decoded source</span>
+                <strong>{inputStatus || "Ready for verification"}</strong>
+              </div>
+            </div>
+          ) : (
+            <p className="panel-copy">No file selected yet.</p>
+          )}
         </section>
 
         <section className="panel-card">

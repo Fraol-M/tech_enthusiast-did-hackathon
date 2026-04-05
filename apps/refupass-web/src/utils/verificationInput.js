@@ -149,9 +149,5 @@ export async function extractVerificationInput(file) {
     return decodeQrFromImageFile(file);
   }
 
-  return {
-    credentialText: await file.text(),
-    credentialMetadata: null,
-    sourceLabel: `Loaded ${file.name}`,
-  };
+  throw new Error("Upload a RefuPass PDF or a mobile pass image.");
 }

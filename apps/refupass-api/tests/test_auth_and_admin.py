@@ -139,6 +139,28 @@ def test_platform_admin_can_start_identity_verification(client: TestClient, plat
     assert payload["sessionToken"]
 
 
+def test_platform_admin_can_start_identity_verification_without_manual_household_fields(
+    client: TestClient,
+    platform_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/platform/identity-verifications",
+        headers=platform_headers,
+        json={
+            "fullName": "Asha Noor",
+            "phone": "+251900222111",
+            "gender": "female",
+            "familySize": 5,
+            "settlement": "Kebribeyah Camp",
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["status"] == "pending"
+    assert payload["sessionToken"]
+
+
 def test_ngo_admin_cannot_start_identity_verification(client: TestClient, ngo_admin_headers: dict[str, str]) -> None:
     response = client.post(
         "/platform/identity-verifications",
@@ -190,6 +212,17 @@ def test_ngo_admin_can_create_program_enrollment_for_existing_person(
     assert payload["program"]["name"] == "Nutrition Support"
     assert payload["program"]["ngo"]["name"] == "Relief Alliance Ethiopia"
     assert payload["distributionSite"] == "Kebribeyah Site C"
+
+
+def test_ngo_admin_can_list_programs_for_structured_enrollment(
+    client: TestClient,
+    ngo_admin_headers: dict[str, str],
+) -> None:
+    response = client.get("/programs", headers=ngo_admin_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(program["name"] == "Emergency Food Assistance" for program in payload)
 
 
 def test_esignet_callback_creates_shared_person_and_status_record(

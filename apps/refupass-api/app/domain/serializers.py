@@ -12,6 +12,7 @@ from ..schemas import (
     PersonDetail,
     PersonSummary,
     PlatformNgoSummary,
+    ProgramSummary,
     ProgramEnrollmentDetail,
     ProgramEnrollmentSummary,
     RedemptionResponse,
@@ -36,6 +37,15 @@ def serialize_person_detail(db: Session, person: Person) -> PersonDetail:
         {
             **serialize_person(person).model_dump(),
             "enrollment_count": enrollment_count or 0,
+        }
+    )
+
+
+def serialize_program(program) -> ProgramSummary:
+    return ProgramSummary.model_validate(
+        {
+            **program.__dict__,
+            "ngo": program.ngo,
         }
     )
 

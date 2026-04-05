@@ -9,6 +9,7 @@ import { describeIdentity, formatSubjectId } from "../utils/identity";
 const navItems = [{ to: "/admin", label: "NGO dashboard", end: false, icon: UserPlus }];
 
 const defaultForm = {
+  programId: "",
   programName: "Emergency Food Assistance",
   distributionSite: "",
   rationTier: "",
@@ -20,6 +21,7 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
   const ngoName = session.ngoName || "RefuPass NGO";
   const navigate = useNavigate();
   const [people, setPeople] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [form, setForm] = useState(defaultForm);
@@ -41,6 +43,25 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
 
   useEffect(() => {
     loadPeople();
+    (async () => {
+      try {
+        const payload = await api.getPrograms(session.accessToken);
+        setPrograms(payload);
+        if (payload.length) {
+          const [firstProgram] = payload;
+          setForm((current) => ({
+            ...current,
+            programId: String(firstProgram.id),
+            programName: firstProgram.name,
+            assistanceType: firstProgram.assistanceType,
+            distributionSite: firstProgram.defaultDistributionSite || "",
+            rationTier: firstProgram.defaultRationTier || "",
+          }));
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    })();
   }, [session.accessToken]);
 
   useEffect(() => {
@@ -58,6 +79,18 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
 
   const updateField = (event) => {
     const { name, value } = event.target;
+    if (name === "programId") {
+      const selectedProgram = programs.find((program) => String(program.id) === value);
+      setForm((current) => ({
+        ...current,
+        programId: value,
+        programName: selectedProgram?.name || current.programName,
+        assistanceType: selectedProgram?.assistanceType || current.assistanceType,
+        distributionSite: selectedProgram?.defaultDistributionSite || "",
+        rationTier: selectedProgram?.defaultRationTier || "",
+      }));
+      return;
+    }
     setForm((current) => ({
       ...current,
       [name]: value,
@@ -75,7 +108,8 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
     try {
       const enrollment = await api.createProgramEnrollment(session.accessToken, {
         personId: selectedPerson.id,
-        programName: form.programName,
+        programId: form.programId ? Number(form.programId) : null,
+        programName: programs.length ? null : form.programName,
         assistanceType: form.assistanceType,
         distributionSite: form.distributionSite,
         rationTier: form.rationTier,
@@ -192,19 +226,34 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
           )}
 
           <form className="stacked-form" onSubmit={submit}>
-            <label>
-              Program
-              <input name="programName" value={form.programName} onChange={updateField} required />
-            </label>
-            <label>
-              Assistance type
-              <select name="assistanceType" value={form.assistanceType} onChange={updateField}>
-                <option value="food">food</option>
-                <option value="cash">cash</option>
-                <option value="health">health</option>
-                <option value="shelter">shelter</option>
-              </select>
-            </label>
+            {programs.length ? (
+              <label>
+                Program
+                <select name="programId" value={form.programId} onChange={updateField} required>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <>
+                <label>
+                  Program
+                  <input name="programName" value={form.programName} onChange={updateField} required />
+                </label>
+                <label>
+                  Assistance type
+                  <select name="assistanceType" value={form.assistanceType} onChange={updateField}>
+                    <option value="food">food</option>
+                    <option value="cash">cash</option>
+                    <option value="health">health</option>
+                    <option value="shelter">shelter</option>
+                  </select>
+                </label>
+              </>
+            )}
             <label>
               Distribution site
               <input name="distributionSite" value={form.distributionSite} onChange={updateField} required />

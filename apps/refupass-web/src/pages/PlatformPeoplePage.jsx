@@ -15,9 +15,7 @@ const defaultPersonForm = {
   fullName: "",
   phone: "",
   gender: "female",
-  householdCode: "",
   familySize: 1,
-  primaryContactName: "",
   settlement: "",
 };
 
@@ -176,22 +174,17 @@ export default function PlatformPeoplePage({ session, onLogout }) {
                 </select>
               </label>
               <label>
-                Household code
-                <input name="householdCode" value={personForm.householdCode} onChange={handlePersonChange} required />
-              </label>
-              <label>
                 Family size
                 <input type="number" min="1" name="familySize" value={personForm.familySize} onChange={handlePersonChange} required />
-              </label>
-              <label>
-                Primary contact
-                <input name="primaryContactName" value={personForm.primaryContactName} onChange={handlePersonChange} required />
               </label>
               <label>
                 Settlement
                 <input name="settlement" value={personForm.settlement} onChange={handlePersonChange} required />
               </label>
             </div>
+            <p className="panel-copy">
+              RefuPass will generate the household reference and use the verified person as the default primary contact.
+            </p>
             <Button type="submit" disabled={personSubmitting}>
               {personSubmitting ? "Waiting for verification..." : "Verify with eSignet"}
             </Button>

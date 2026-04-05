@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import runtime
 from ..database import get_db
+from ..domain.operations import generate_reference
 from ..domain.operations import create_household_from_payload, create_or_reuse_person
 from ..domain.serializers import serialize_identity_verification_session, serialize_platform_ngo
 from ..models import IdentityVerificationSession, Ngo, Program, User
@@ -192,11 +193,13 @@ async def complete_identity_verification(
             code=code,
         )
         payload = verification_session.person_payload
+        household_code = payload.get("household_code") or generate_reference("HH")
+        primary_contact_name = payload.get("primary_contact_name") or payload["full_name"]
         household = create_household_from_payload(
             db,
-            household_code=payload["household_code"],
+            household_code=household_code,
             family_size=payload["family_size"],
-            primary_contact_name=payload["primary_contact_name"],
+            primary_contact_name=primary_contact_name,
             settlement=payload["settlement"],
         )
         person = create_or_reuse_person(
