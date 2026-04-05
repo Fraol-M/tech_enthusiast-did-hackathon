@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from app.models import User
+from app.security import verify_password
 
 
 def test_health_check(client: TestClient) -> None:
@@ -22,6 +26,14 @@ def test_login_returns_access_and_refresh_tokens(client: TestClient) -> None:
     assert isinstance(payload["refreshToken"], str)
     assert payload["accessToken"] != payload["refreshToken"]
     assert payload["tokenType"] == "bearer"
+
+
+def test_seeded_admin_password_is_stored_hashed(db_session) -> None:
+    admin_user = db_session.scalar(select(User).where(User.username == "admin"))
+
+    assert admin_user is not None
+    assert admin_user.password != "admin123"
+    assert verify_password("admin123", admin_user.password) is True
 
 
 def test_refresh_returns_new_access_and_refresh_tokens(client: TestClient) -> None:
@@ -82,6 +94,18 @@ def test_seeded_program_enrollments_include_shared_identity_fields(client: TestC
     assert amina["person"]["id"] is not None
     assert amina["person"]["personCode"] == "PER-001"
     assert amina["currentEligibility"]["status"] == "eligible"
+
+
+def test_seeded_people_are_esignet_verified(client: TestClient, ngo_admin_headers: dict[str, str]) -> None:
+    response = client.get("/people", headers=ngo_admin_headers)
+
+    assert response.status_code == 200
+    people_by_name = {person["fullName"]: person for person in response.json()}
+
+    for name in ("Amina Hassan", "Sami Bekele"):
+        assert people_by_name[name]["identityStatus"] == "verified_digital"
+        assert people_by_name[name]["identityProvider"] == "esignet_mock"
+        assert people_by_name[name]["verifiedAt"] is not None
 
 
 def test_people_search_can_match_settlement_for_ngo_enrollment(
@@ -385,6 +409,28 @@ def test_ngo_admin_can_register_aid_worker(client: TestClient, ngo_admin_headers
     assert payload["role"] == "aid_worker"
     assert payload["displayName"] == "Lulit Kassa"
     assert payload["ngoName"] == "Relief Alliance Ethiopia"
+
+
+def test_created_aid_worker_password_is_stored_hashed(
+    client: TestClient,
+    ngo_admin_headers: dict[str, str],
+    db_session,
+) -> None:
+    response = client.post(
+        "/aid-workers",
+        headers=ngo_admin_headers,
+        json={
+            "displayName": "Hash Check Worker",
+            "username": "hash-check-worker",
+            "password": "hash-check-pass",
+        },
+    )
+
+    assert response.status_code == 201
+    worker = db_session.scalar(select(User).where(User.username == "hash-check-worker"))
+    assert worker is not None
+    assert worker.password != "hash-check-pass"
+    assert verify_password("hash-check-pass", worker.password) is True
 
 
 def test_ngo_admin_can_list_only_their_own_aid_workers(

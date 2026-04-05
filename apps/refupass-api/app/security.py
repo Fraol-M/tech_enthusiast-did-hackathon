@@ -2,6 +2,8 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from passlib.context import CryptContext
+from passlib.exc import UnknownHashError
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from fastapi import Depends, HTTPException, status
@@ -16,6 +18,21 @@ from .models import User
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()
+password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def get_password_hash(password: str) -> str:
+    return password_context.hash(password)
+
+
+def verify_password(plain_password: str, stored_password: str) -> bool:
+    try:
+        return password_context.verify(plain_password, stored_password)
+    except UnknownHashError:
+        return False
+    except ValueError:
+        return False
+
 
 def _build_token(*, user: User, secret: str, token_type: str, expires_delta: timedelta) -> str:
     now = datetime.now(timezone.utc)
