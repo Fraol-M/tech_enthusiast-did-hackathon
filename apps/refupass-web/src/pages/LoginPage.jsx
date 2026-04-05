@@ -1,7 +1,25 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { ArrowRight, ShieldCheck, User, Users, Shield } from "lucide-react";
 import { api } from "../api/client";
+
+const ROLE_META = {
+  platform_admin: {
+    label: "Platform Admin",
+    description: "Global oversight & system management",
+    icon: Shield,
+  },
+  ngo_admin: {
+    label: "NGO Admin",
+    description: "Camp operations & enrollment management",
+    icon: Users,
+  },
+  aid_worker: {
+    label: "Aid Worker",
+    description: "Field verification & delivery confirmation",
+    icon: User,
+  },
+};
 
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate();
@@ -42,73 +60,95 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
+  const currentRole = ROLE_META[mode];
+  const CurrentIcon = currentRole.icon;
+
   return (
     <div className="login-layout">
       <section className="login-hero">
-        <div className="floating-card">
-          <h1>RefuPass</h1>
-          <p>Dignity in verification.</p>
+        <div className="login-hero__overlay"></div>
+        <div className="login-hero__content">
+          <Link to="/" className="login-hero__brand">
+            <img src="/refupass-mark.svg" alt="RefuPass" className="login-hero__logo" />
+            <span>RefuPass</span>
+          </Link>
+          <div className="login-hero__tagline">
+            <h1>Dignity in<br/>Verification.</h1>
+            <p>Secure, verifiable aid distribution for the world's most vulnerable communities.</p>
+          </div>
+          <p className="login-hero__built">Built for everyone — Aid Workers, NGO Administrators, and Platform Teams.</p>
         </div>
       </section>
 
       <section className="login-panel">
-        <div className="panel-card auth-card">
-          <h2>Secure Access</h2>
-          
-          <div className="segmented-toggle">
-            <button
-              type="button"
-              className={`segmented-toggle-button ${mode === "platform_admin" ? "active" : ""}`}
-              onClick={() => {
-                setMode("platform_admin");
-                setError("");
-              }}
-            >
-              Platform
-            </button>
-            <button
-              type="button"
-              className={`segmented-toggle-button ${mode === "ngo_admin" ? "active" : ""}`}
-              onClick={() => {
-                setMode("ngo_admin");
-                setError("");
-              }}
-            >
-              NGO
-            </button>
-            <button
-              type="button"
-              className={`segmented-toggle-button ${mode === "aid_worker" ? "active" : ""}`}
-              onClick={() => {
-                setMode("aid_worker");
-                setError("");
-              }}
-            >
-              Worker
-            </button>
+        <div className="login-panel__inner">
+          <div className="login-panel__header">
+            <div className="login-panel__icon-wrap">
+              <ShieldCheck size={24} strokeWidth={1.5} />
+            </div>
+            <h2>Secure Access</h2>
+            <p>Sign in to your workspace</p>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <label>
-              Username
-              <input name="username" value={form.username} onChange={handleChange} required />
+          {/* Role selector */}
+          <div className="login-role-selector">
+            {Object.entries(ROLE_META).map(([key, meta]) => {
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`login-role-option ${mode === key ? "active" : ""}`}
+                  onClick={() => { setMode(key); setError(""); }}
+                >
+                  <Icon size={18} strokeWidth={1.5} />
+                  <span>{meta.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active role description */}
+          <div className="login-role-description">
+            <CurrentIcon size={16} strokeWidth={2} />
+            <span>{currentRole.description}</span>
+          </div>
+
+          <form onSubmit={handleSubmit} className="login-form">
+            <label className="login-field">
+              <span>Username</span>
+              <input
+                name="username"
+                value={form.username}
+                onChange={handleChange}
+                placeholder="Enter your username"
+                required
+              />
             </label>
-            <label>
-              Password
+            <label className="login-field">
+              <span>Password</span>
               <input
                 type="password"
                 name="password"
                 value={form.password}
                 onChange={handleChange}
+                placeholder="Enter your password"
                 required
               />
             </label>
             {error ? <div className="status-banner error">{error}</div> : null}
-            <button className="button button-primary full-width" type="submit" disabled={loading} style={{marginTop: '1.5rem'}}>
+            <button className="button button-primary full-width login-submit" type="submit" disabled={loading}>
               {loading ? "Authenticating..." : "Sign In"}
               <ArrowRight size={16} strokeWidth={1.5} />
             </button>
           </form>
+
+          <div className="login-panel__footer">
+            <Link to="/" className="login-back-link">
+              <ArrowRight size={14} strokeWidth={1.5} style={{transform: 'rotate(180deg)'}} />
+              Back to homepage
+            </Link>
+          </div>
         </div>
       </section>
     </div>
