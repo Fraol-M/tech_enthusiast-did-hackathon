@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -25,7 +25,7 @@ from ..domain.serializers import (
     serialize_program_enrollment_detail,
     serialize_staff_user,
 )
-from ..models import Eligibility, IssuanceSession, Person, Program, ProgramEnrollment, User
+from ..models import Eligibility, Household, IssuanceSession, Person, Program, ProgramEnrollment, User
 from ..schemas import (
     AidCycleResponse,
     AidWorkerCreate,
@@ -105,16 +105,27 @@ def list_people(
     _user: User = Depends(require_role("platform_admin", "ngo_admin")),
     db: Session = Depends(get_db),
 ) -> list[PersonSummary]:
-    query = select(Person).options(joinedload(Person.household)).order_by(Person.full_name.asc())
+    query = (
+        select(Person)
+        .outerjoin(Household, Household.id == Person.household_id)
+        .options(joinedload(Person.household))
+    )
     if search:
         pattern = f"%{search.lower()}%"
         query = query.where(
             or_(
+                Household.settlement.ilike(pattern),
+                Household.household_code.ilike(pattern),
                 Person.full_name.ilike(pattern),
                 Person.auth_subject.ilike(pattern),
                 Person.person_code.ilike(pattern),
             )
+        ).order_by(
+            case((Household.settlement.ilike(pattern), 0), (Person.full_name.ilike(pattern), 1), else_=2),
+            Person.full_name.asc(),
         )
+    else:
+        query = query.order_by(Person.full_name.asc())
     people = db.scalars(query).all()
     return [serialize_person(person) for person in people]
 

@@ -84,6 +84,17 @@ def test_seeded_program_enrollments_include_shared_identity_fields(client: TestC
     assert amina["currentEligibility"]["status"] == "eligible"
 
 
+def test_people_search_can_match_settlement_for_ngo_enrollment(
+    client: TestClient,
+    ngo_admin_headers: dict[str, str],
+) -> None:
+    response = client.get("/people", headers=ngo_admin_headers, params={"search": "Kebribeyah"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(person["fullName"] == "Amina Hassan" for person in payload)
+
+
 def test_platform_admin_can_register_new_ngo_admin(
     client: TestClient,
     platform_headers: dict[str, str],

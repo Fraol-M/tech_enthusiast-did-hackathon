@@ -90,77 +90,85 @@ function Test-MockIdentityExists {
     return ($null -ne $result.response -and -not $result.errors)
 }
 
+function New-DemoPersona {
+    param(
+        [string]$IndividualId,
+        [string]$FullName,
+        [string]$GivenName,
+        [string]$MiddleName,
+        [string]$FamilyName,
+        [string]$Gender,
+        [string]$DateOfBirth,
+        [string]$Phone,
+        [string]$Email,
+        [string]$StreetAddress,
+        [string]$Locality = "Jijiga",
+        [string]$Region = "Somali",
+        [string]$PostalCode = "1000",
+        [string]$Country = "Ethiopia",
+        [string]$Usage = "Not seeded in RefuPass. Use this identity to test Verify with eSignet in the web UI."
+    )
+
+    [ordered]@{
+        individualId = $IndividualId
+        pin = "1234"
+        email = $Email
+        phone = $Phone
+        fullName = $FullName
+        nickName = $GivenName
+        givenName = $GivenName
+        middleName = $MiddleName
+        familyName = $FamilyName
+        gender = $Gender
+        dateOfBirth = $DateOfBirth
+        streetAddress = $StreetAddress
+        locality = $Locality
+        region = $Region
+        postalCode = $PostalCode
+        country = $Country
+        password = "Passw0rd!"
+        preferredLang = "eng"
+        locale = "en"
+        zoneInfo = "EAT"
+        usage = $Usage
+    }
+}
+
 function Get-DemoPersonas {
     @(
-        [ordered]@{
-            individualId = "5860356276"
-            pin = "1234"
-            email = "amina.demo@example.com"
-            phone = "+251911223344"
-            fullName = "Amina Hassan"
-            nickName = "Amina"
-            givenName = "Amina"
-            middleName = "K"
-            familyName = "Hassan"
-            gender = "Female"
-            dateOfBirth = "1996/04/03"
-            streetAddress = "Kebribeyah Camp"
-            locality = "Jijiga"
-            region = "Somali"
-            postalCode = "1000"
-            country = "Ethiopia"
-            password = "Passw0rd!"
-            preferredLang = "eng"
-            locale = "en"
-            zoneInfo = "EAT"
-            usage = "Seeded in RefuPass and used by the current Inji issuance demo."
-        }
-        [ordered]@{
-            individualId = "5555444433"
-            pin = "1234"
-            email = "sami.demo@example.com"
-            phone = "+251911334455"
-            fullName = "Sami Bekele"
-            nickName = "Sami"
-            givenName = "Sami"
-            middleName = "T"
-            familyName = "Bekele"
-            gender = "Male"
-            dateOfBirth = "1994/09/12"
-            streetAddress = "Jijiga Transit Site"
-            locality = "Jijiga"
-            region = "Somali"
-            postalCode = "1000"
-            country = "Ethiopia"
-            password = "Passw0rd!"
-            preferredLang = "eng"
-            locale = "en"
-            zoneInfo = "EAT"
-            usage = "Seeded in RefuPass as the second shared person."
-        }
-        [ordered]@{
-            individualId = "7777888899"
-            pin = "1234"
-            email = "nura.demo@example.com"
-            phone = "+251900123456"
-            fullName = "Nura Ali"
-            nickName = "Nura"
-            givenName = "Nura"
-            middleName = "M"
-            familyName = "Ali"
-            gender = "Female"
-            dateOfBirth = "1998/07/21"
-            streetAddress = "Kebribeyah Camp"
-            locality = "Jijiga"
-            region = "Somali"
-            postalCode = "1000"
-            country = "Ethiopia"
-            password = "Passw0rd!"
-            preferredLang = "eng"
-            locale = "en"
-            zoneInfo = "EAT"
-            usage = "Not seeded in RefuPass. Use this one to test Verify with eSignet in the web UI."
-        }
+        (New-DemoPersona -IndividualId "5860356276" -FullName "Amina Hassan" -GivenName "Amina" -MiddleName "K" -FamilyName "Hassan" -Gender "Female" -DateOfBirth "1996/04/03" -Phone "+251911223344" -Email "amina.demo@example.com" -StreetAddress "Kebribeyah Camp" -Usage "Seeded in RefuPass as the first shared person.")
+        (New-DemoPersona -IndividualId "5555444433" -FullName "Sami Bekele" -GivenName "Sami" -MiddleName "T" -FamilyName "Bekele" -Gender "Male" -DateOfBirth "1994/09/12" -Phone "+251911334455" -Email "sami.demo@example.com" -StreetAddress "Jijiga Transit Site" -Usage "Seeded in RefuPass as the second shared person.")
+        (New-DemoPersona -IndividualId "7777888899" -FullName "Nura Ali" -GivenName "Nura" -MiddleName "M" -FamilyName "Ali" -Gender "Female" -DateOfBirth "1998/07/21" -Phone "+251900123456" -Email "nura.demo@example.com" -StreetAddress "Kebribeyah Camp")
+        (New-DemoPersona -IndividualId "7777888801" -FullName "Rahma Yusuf" -GivenName "Rahma" -MiddleName "A" -FamilyName "Yusuf" -Gender "Female" -DateOfBirth "1992/05/17" -Phone "+251900100001" -Email "rahma.demo@example.com" -StreetAddress "Kebribeyah Camp")
+        (New-DemoPersona -IndividualId "7777888802" -FullName "Omar Aden" -GivenName "Omar" -MiddleName "H" -FamilyName "Aden" -Gender "Male" -DateOfBirth "1989/11/02" -Phone "+251900100002" -Email "omar.demo@example.com" -StreetAddress "Kebribeyah Camp")
+        (New-DemoPersona -IndividualId "7777888803" -FullName "Hawa Noor" -GivenName "Hawa" -MiddleName "S" -FamilyName "Noor" -Gender "Female" -DateOfBirth "1990/03/28" -Phone "+251900100003" -Email "hawa.demo@example.com" -StreetAddress "Kebribeyah Camp")
+        (New-DemoPersona -IndividualId "7777888804" -FullName "Abdi Farah" -GivenName "Abdi" -MiddleName "J" -FamilyName "Farah" -Gender "Male" -DateOfBirth "1995/01/14" -Phone "+251900100004" -Email "abdi.demo@example.com" -StreetAddress "Aw Barre Camp")
+        (New-DemoPersona -IndividualId "7777888805" -FullName "Ifrah Ahmed" -GivenName "Ifrah" -MiddleName "M" -FamilyName "Ahmed" -Gender "Female" -DateOfBirth "1997/08/09" -Phone "+251900100005" -Email "ifrah.demo@example.com" -StreetAddress "Aw Barre Camp")
+        (New-DemoPersona -IndividualId "7777888806" -FullName "Khalid Hassan" -GivenName "Khalid" -MiddleName "R" -FamilyName "Hassan" -Gender "Male" -DateOfBirth "1991/10/19" -Phone "+251900100006" -Email "khalid.demo@example.com" -StreetAddress "Aw Barre Camp")
+        (New-DemoPersona -IndividualId "7777888807" -FullName "Asha Ibrahim" -GivenName "Asha" -MiddleName "D" -FamilyName "Ibrahim" -Gender "Female" -DateOfBirth "1999/02/22" -Phone "+251900100007" -Email "asha.demo@example.com" -StreetAddress "Sheder Camp")
+        (New-DemoPersona -IndividualId "7777888808" -FullName "Mohamed Ali" -GivenName "Mohamed" -MiddleName "K" -FamilyName "Ali" -Gender "Male" -DateOfBirth "1988/06/11" -Phone "+251900100008" -Email "mohamed.demo@example.com" -StreetAddress "Sheder Camp")
+        (New-DemoPersona -IndividualId "7777888809" -FullName "Safiya Osman" -GivenName "Safiya" -MiddleName "Y" -FamilyName "Osman" -Gender "Female" -DateOfBirth "1993/09/03" -Phone "+251900100009" -Email "safiya.demo@example.com" -StreetAddress "Sheder Camp")
+        (New-DemoPersona -IndividualId "7777888810" -FullName "Jama Abdirahman" -GivenName "Jama" -MiddleName "L" -FamilyName "Abdirahman" -Gender "Male" -DateOfBirth "1996/12/18" -Phone "+251900100010" -Email "jama.demo@example.com" -StreetAddress "Melkadida Camp")
+        (New-DemoPersona -IndividualId "7777888811" -FullName "Maryan Muse" -GivenName "Maryan" -MiddleName "H" -FamilyName "Muse" -Gender "Female" -DateOfBirth "1994/07/05" -Phone "+251900100011" -Email "maryan.demo@example.com" -StreetAddress "Melkadida Camp")
+        (New-DemoPersona -IndividualId "7777888812" -FullName "Faisal Abdullahi" -GivenName "Faisal" -MiddleName "N" -FamilyName "Abdullahi" -Gender "Male" -DateOfBirth "1990/04/27" -Phone "+251900100012" -Email "faisal.demo@example.com" -StreetAddress "Melkadida Camp")
+        (New-DemoPersona -IndividualId "7777888813" -FullName "Ubah Hassan" -GivenName "Ubah" -MiddleName "A" -FamilyName "Hassan" -Gender "Female" -DateOfBirth "1998/11/13" -Phone "+251900100013" -Email "ubah.demo@example.com" -StreetAddress "Hilaweyn Camp")
+        (New-DemoPersona -IndividualId "7777888814" -FullName "Abukar Warsame" -GivenName "Abukar" -MiddleName "T" -FamilyName "Warsame" -Gender "Male" -DateOfBirth "1987/01/31" -Phone "+251900100014" -Email "abukar.demo@example.com" -StreetAddress "Hilaweyn Camp")
+        (New-DemoPersona -IndividualId "7777888815" -FullName "Samira Ismail" -GivenName "Samira" -MiddleName "B" -FamilyName "Ismail" -Gender "Female" -DateOfBirth "1995/05/25" -Phone "+251900100015" -Email "samira.demo@example.com" -StreetAddress "Hilaweyn Camp")
+        (New-DemoPersona -IndividualId "7777888816" -FullName "Yassin Adam" -GivenName "Yassin" -MiddleName "C" -FamilyName "Adam" -Gender "Male" -DateOfBirth "1992/03/15" -Phone "+251900100016" -Email "yassin.demo@example.com" -StreetAddress "Bokolmayo Camp")
+        (New-DemoPersona -IndividualId "7777888817" -FullName "Hodan Nur" -GivenName "Hodan" -MiddleName "E" -FamilyName "Nur" -Gender "Female" -DateOfBirth "1991/08/20" -Phone "+251900100017" -Email "hodan.demo@example.com" -StreetAddress "Bokolmayo Camp")
+        (New-DemoPersona -IndividualId "7777888818" -FullName "Mustafa Mohamud" -GivenName "Mustafa" -MiddleName "G" -FamilyName "Mohamud" -Gender "Male" -DateOfBirth "1989/10/07" -Phone "+251900100018" -Email "mustafa.demo@example.com" -StreetAddress "Bokolmayo Camp")
+        (New-DemoPersona -IndividualId "7777888819" -FullName "Nasteho Jama" -GivenName "Nasteho" -MiddleName "I" -FamilyName "Jama" -Gender "Female" -DateOfBirth "1997/12/02" -Phone "+251900100019" -Email "nasteho.demo@example.com" -StreetAddress "Kule Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888820" -FullName "Ahmed Guled" -GivenName "Ahmed" -MiddleName "O" -FamilyName "Guled" -Gender "Male" -DateOfBirth "1993/02/08" -Phone "+251900100020" -Email "ahmed.guled.demo@example.com" -StreetAddress "Kule Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888821" -FullName "Fadumo Ali" -GivenName "Fadumo" -MiddleName "P" -FamilyName "Ali" -Gender "Female" -DateOfBirth "1996/06/30" -Phone "+251900100021" -Email "fadumo.demo@example.com" -StreetAddress "Tierkidi Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888822" -FullName "Tesfaye Bekele" -GivenName "Tesfaye" -MiddleName "Q" -FamilyName "Bekele" -Gender "Male" -DateOfBirth "1988/09/24" -Phone "+251900100022" -Email "tesfaye.demo@example.com" -StreetAddress "Tierkidi Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888823" -FullName "Aster Demissie" -GivenName "Aster" -MiddleName "R" -FamilyName "Demissie" -Gender "Female" -DateOfBirth "1990/01/12" -Phone "+251900100023" -Email "aster.demo@example.com" -StreetAddress "Pugnido Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888824" -FullName "Solomon Tadesse" -GivenName "Solomon" -MiddleName "S" -FamilyName "Tadesse" -Gender "Male" -DateOfBirth "1991/11/09" -Phone "+251900100024" -Email "solomon.demo@example.com" -StreetAddress "Pugnido Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888825" -FullName "Halima Ahmed" -GivenName "Halima" -MiddleName "T" -FamilyName "Ahmed" -Gender "Female" -DateOfBirth "1998/04/18" -Phone "+251900100025" -Email "halima.demo@example.com" -StreetAddress "Jewi Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888826" -FullName "Muktar Omar" -GivenName "Muktar" -MiddleName "U" -FamilyName "Omar" -Gender "Male" -DateOfBirth "1994/07/29" -Phone "+251900100026" -Email "muktar.demo@example.com" -StreetAddress "Jewi Camp" -Locality "Gambella" -Region "Gambella")
+        (New-DemoPersona -IndividualId "7777888827" -FullName "Roda Abdi" -GivenName "Roda" -MiddleName "V" -FamilyName "Abdi" -Gender "Female" -DateOfBirth "1995/03/06" -Phone "+251900100027" -Email "roda.demo@example.com" -StreetAddress "Sherkole Camp" -Locality "Asosa" -Region "Benishangul-Gumuz")
+        (New-DemoPersona -IndividualId "7777888828" -FullName "Bilal Osman" -GivenName "Bilal" -MiddleName "W" -FamilyName "Osman" -Gender "Male" -DateOfBirth "1992/08/14" -Phone "+251900100028" -Email "bilal.demo@example.com" -StreetAddress "Sherkole Camp" -Locality "Asosa" -Region "Benishangul-Gumuz")
+        (New-DemoPersona -IndividualId "7777888829" -FullName "Fatuma Yusuf" -GivenName "Fatuma" -MiddleName "X" -FamilyName "Yusuf" -Gender "Female" -DateOfBirth "1997/10/26" -Phone "+251900100029" -Email "fatuma.demo@example.com" -StreetAddress "Bambasi Camp" -Locality "Asosa" -Region "Benishangul-Gumuz")
+        (New-DemoPersona -IndividualId "7777888830" -FullName "Dawit Kassa" -GivenName "Dawit" -MiddleName "Y" -FamilyName "Kassa" -Gender "Male" -DateOfBirth "1993/05/04" -Phone "+251900100030" -Email "dawit.demo@example.com" -StreetAddress "Bambasi Camp" -Locality "Asosa" -Region "Benishangul-Gumuz")
     )
 }
 

@@ -143,13 +143,13 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
             </div>
           </div>
           <p className="panel-copy">
-            Find a previously verified person, then attach them to your NGO program for the current aid cycle.
+            Find a previously verified person by settlement first, then by name or person code, and attach them to your NGO program.
           </p>
           <div className="search-wrap">
             <Search size={16} strokeWidth={2.2} />
             <input
               className="search-input"
-              placeholder="Search by name, identity, or person code"
+              placeholder="Search by settlement, name, household code, or person code"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -170,7 +170,7 @@ export default function PersonEnrollmentCreatePage({ session, onLogout }) {
                   <strong>{person.fullName}</strong>
                   <span>{[person.personCode, describeIdentity(person)].filter(Boolean).join(" • ")}</span>
                   <span title={person.authSubject || undefined}>
-                    {[person.household?.householdCode || "No household", person.authSubject ? formatSubjectId(person.authSubject) : null]
+                    {[person.household?.settlement || "No settlement", person.household?.householdCode || "No household", person.authSubject ? formatSubjectId(person.authSubject) : null]
                       .filter(Boolean)
                       .join(" • ")}
                   </span>
