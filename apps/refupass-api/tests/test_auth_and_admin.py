@@ -186,6 +186,25 @@ def test_platform_admin_can_start_identity_verification(client: TestClient, plat
     assert payload["sessionToken"]
 
 
+def test_platform_admin_can_list_remaining_demo_identities(
+    client: TestClient,
+    platform_headers: dict[str, str],
+) -> None:
+    response = client.get("/platform/demo-identities", headers=platform_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["otpHint"] == "111111"
+    assert payload["totalCount"] > payload["remainingCount"]
+    assert len(payload["suggested"]) == 3
+    suggested_ids = {identity["individualId"] for identity in payload["suggested"]}
+    suggested_names = {identity["fullName"] for identity in payload["suggested"]}
+    assert "5860356276" not in suggested_ids
+    assert "5555444433" not in suggested_ids
+    assert "Amina Hassan" not in suggested_names
+    assert "Sami Bekele" not in suggested_names
+
+
 def test_platform_admin_can_start_identity_verification_without_manual_household_fields(
     client: TestClient,
     platform_headers: dict[str, str],
@@ -343,6 +362,35 @@ def test_esignet_callback_reuses_existing_person_and_reports_it(
     assert payload["status"] == "completed"
     assert payload["resolution"] == "existing_person"
     assert payload["person"]["authSubject"] == "5860356276"
+
+
+def test_demo_identity_list_updates_after_live_verification(
+    client: TestClient,
+    platform_headers: dict[str, str],
+) -> None:
+    before_response = client.get("/platform/demo-identities", headers=platform_headers)
+    verification_response = client.post(
+        "/platform/identity-verifications",
+        headers=platform_headers,
+        json={
+            "fullName": "Nura Ali",
+            "phone": "+251900123456",
+            "gender": "female",
+            "familySize": 3,
+            "settlement": "Kebribeyah Camp",
+        },
+    )
+    session_token = verification_response.json()["sessionToken"]
+    client.get(
+        "/platform/identity/esignet/callback",
+        params={"code": "7777888899", "state": f"state-{session_token}"},
+    )
+    after_response = client.get("/platform/demo-identities", headers=platform_headers)
+
+    assert before_response.status_code == 200
+    assert after_response.status_code == 200
+    assert after_response.json()["remainingCount"] == before_response.json()["remainingCount"] - 1
+    assert all(identity["individualId"] != "7777888899" for identity in after_response.json()["suggested"])
 
 
 def test_new_person_enrollment_creates_program_enrollment_for_dashboard(

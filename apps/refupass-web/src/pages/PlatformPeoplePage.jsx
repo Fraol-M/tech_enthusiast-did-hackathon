@@ -22,6 +22,7 @@ const defaultPersonForm = {
 
 export default function PlatformPeoplePage({ session, onLogout }) {
   const [people, setPeople] = useState([]);
+  const [demoIdentities, setDemoIdentities] = useState(null);
   const [personForm, setPersonForm] = useState(defaultPersonForm);
   const [status, setStatus] = useState("");
   const [statusTone, setStatusTone] = useState("success");
@@ -31,18 +32,37 @@ export default function PlatformPeoplePage({ session, onLogout }) {
   const popupRef = useRef(null);
   const { showToast } = useToast();
 
+  const loadDemoIdentities = async () => {
+    try {
+      const payload = await api.getDemoIdentities(session.accessToken);
+      setDemoIdentities(payload);
+    } catch (_error) {
+      setDemoIdentities(null);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       setLoading(true);
-      try {
-        const payload = await api.getPeople(session.accessToken);
-        setPeople(payload);
-      } catch (error) {
+      const [peopleResult, demoResult] = await Promise.allSettled([
+        api.getPeople(session.accessToken),
+        api.getDemoIdentities(session.accessToken),
+      ]);
+
+      if (peopleResult.status === "fulfilled") {
+        setPeople(peopleResult.value);
+      } else {
         setStatusTone("error");
-        setStatus(error.message);
-      } finally {
-        setLoading(false);
+        setStatus(peopleResult.reason.message);
       }
+
+      if (demoResult.status === "fulfilled") {
+        setDemoIdentities(demoResult.value);
+      } else {
+        setDemoIdentities(null);
+      }
+
+      setLoading(false);
     })();
   }, [session.accessToken]);
 
@@ -74,6 +94,7 @@ export default function PlatformPeoplePage({ session, onLogout }) {
                 : `${current.person.fullName} was added to the shared registry.`),
             tone: alreadyRegistered ? "warning" : "success",
           });
+          void loadDemoIdentities();
           if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
           popupRef.current = null;
           return;
@@ -222,6 +243,43 @@ export default function PlatformPeoplePage({ session, onLogout }) {
             <p className="panel-copy">
               RefuPass will generate the household reference and use the verified person as the default primary contact.
             </p>
+            <div className="demo-identities-card">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Judge helper</p>
+                  <h4>Demo identities</h4>
+                </div>
+              </div>
+              <p className="panel-copy">
+                Use one of these remaining mock identities in the eSignet popup. OTP: <strong>111111</strong>
+              </p>
+              {demoIdentities ? (
+                demoIdentities.remainingCount > 0 ? (
+                  <>
+                    <div className="simple-list">
+                      {demoIdentities.suggested.map((identity) => (
+                        <div key={identity.individualId} className="simple-list-row">
+                          <strong>{identity.fullName}</strong>
+                          <span>{identity.individualId}</span>
+                          <span>{identity.settlement}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="panel-copy">
+                      Showing {demoIdentities.suggested.length} of {demoIdentities.remainingCount} remaining demo identities.
+                    </p>
+                  </>
+                ) : (
+                  <p className="panel-copy">
+                    All demo identities have already been verified in RefuPass.
+                  </p>
+                )
+              ) : (
+                <p className="panel-copy">
+                  Demo identity suggestions are temporarily unavailable, but the verification flow still works.
+                </p>
+              )}
+            </div>
             <Button type="submit" disabled={personSubmitting}>
               {personSubmitting ? "Waiting for verification..." : "Verify with eSignet"}
             </Button>

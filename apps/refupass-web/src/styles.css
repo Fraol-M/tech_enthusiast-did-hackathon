@@ -1462,6 +1462,15 @@ input::placeholder {
   gap: 1rem;
 }
 
+.demo-identities-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid rgba(184, 159, 115, 0.24);
+  background: linear-gradient(180deg, rgba(184, 159, 115, 0.06) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+
 .stacked-form label {
   margin: 0;
 }

@@ -11,12 +11,14 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import runtime
 from ..database import get_db
+from ..demo_identities import DEMO_IDENTITIES, get_available_demo_identities
 from ..domain.operations import generate_reference
 from ..domain.operations import create_household_from_payload, create_or_reuse_person
 from ..domain.serializers import serialize_identity_verification_session, serialize_platform_ngo
 from ..models import IdentityVerificationSession, Ngo, Person, Program, User
 from ..schemas import (
     AdminRegisterRequest,
+    DemoIdentityAvailabilityResponse,
     IdentityVerificationSessionResponse,
     IdentityVerificationSessionStatus,
     IdentityVerificationStartRequest,
@@ -26,6 +28,21 @@ from ..security import get_password_hash, require_role
 
 
 router = APIRouter()
+
+
+@router.get("/platform/demo-identities", response_model=DemoIdentityAvailabilityResponse)
+def get_demo_identity_availability(
+    _user: User = Depends(require_role("platform_admin")),
+    db: Session = Depends(get_db),
+) -> DemoIdentityAvailabilityResponse:
+    verified_subjects = db.scalars(select(Person.auth_subject).where(Person.auth_subject.is_not(None))).all()
+    remaining = get_available_demo_identities(verified_subjects)
+    return DemoIdentityAvailabilityResponse(
+        total_count=len(DEMO_IDENTITIES),
+        remaining_count=len(remaining),
+        otp_hint="111111",
+        suggested=remaining[:3],
+    )
 
 
 @router.get("/platform/ngos", response_model=list[PlatformNgoSummary])

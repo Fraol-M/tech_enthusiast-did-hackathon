@@ -184,6 +184,20 @@ class IdentityVerificationSessionStatus(ApiModel):
     person: PersonDetail | None = None
 
 
+class DemoIdentitySummary(ApiModel):
+    individual_id: str
+    full_name: str
+    settlement: str
+    usage: str
+
+
+class DemoIdentityAvailabilityResponse(ApiModel):
+    total_count: int
+    remaining_count: int
+    otp_hint: str
+    suggested: list[DemoIdentitySummary] = Field(default_factory=list)
+
+
 class AidWorkerCreate(ApiModel):
     display_name: str
     username: str
