@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from app import main
+from app import main, runtime
 from app.database import Base
 from app.main import get_current_cycle_record, get_current_eligibility_for_enrollment
 from app.models import ProgramEnrollment
@@ -62,12 +62,16 @@ def client(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main, "engine", test_engine)
     monkeypatch.setattr(main, "SessionLocal", TestingSessionLocal)
+    monkeypatch.setattr(runtime, "engine", test_engine)
+    monkeypatch.setattr(runtime, "SessionLocal", TestingSessionLocal)
     monkeypatch.setattr(
-        main,
+        runtime,
         "verify_client",
         InjiVerifyClient(SimpleNamespace(inji_verify_mode="stub", inji_verify_api_url="http://unused")),
     )
-    monkeypatch.setattr(main, "esignet_service", FakeESignetVerificationService())
+    monkeypatch.setattr(main, "verify_client", runtime.verify_client)
+    monkeypatch.setattr(runtime, "esignet_service", FakeESignetVerificationService())
+    monkeypatch.setattr(main, "esignet_service", runtime.esignet_service)
 
     def override_get_db():
         db = TestingSessionLocal()

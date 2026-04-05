@@ -1,16 +1,23 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { api } from "../api/client";
-import Button from "../components/Button";
-import Badge from "../components/Badge";
 
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState("ngo_admin");
+  const location = useLocation();
+  const preselect = location.state?.preselect || "ngo_admin";
+  
+  const [mode, setMode] = useState(preselect);
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.preselect) {
+      setMode(location.state.preselect);
+    }
+  }, [location.state]);
 
   const handleChange = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -39,14 +46,15 @@ export default function LoginPage({ onLogin }) {
     <div className="login-layout">
       <section className="login-hero">
         <div className="floating-card">
-          <Badge tone="neutral" className="hero-badge">RefuPass</Badge>
           <h1>RefuPass</h1>
-          <p>Sign in</p>
+          <p>Dignity in verification.</p>
         </div>
       </section>
 
       <section className="login-panel">
         <div className="panel-card auth-card">
+          <h2>Secure Access</h2>
+          
           <div className="segmented-toggle">
             <button
               type="button"
@@ -56,7 +64,7 @@ export default function LoginPage({ onLogin }) {
                 setError("");
               }}
             >
-              Platform admin
+              Platform
             </button>
             <button
               type="button"
@@ -66,7 +74,7 @@ export default function LoginPage({ onLogin }) {
                 setError("");
               }}
             >
-              NGO admin
+              NGO
             </button>
             <button
               type="button"
@@ -76,19 +84,11 @@ export default function LoginPage({ onLogin }) {
                 setError("");
               }}
             >
-              Aid worker
+              Worker
             </button>
           </div>
 
           <form onSubmit={handleSubmit}>
-            <p className="eyebrow">Secure access</p>
-            <h2>
-              {mode === "platform_admin"
-                ? "Platform admin sign in"
-                : mode === "ngo_admin"
-                  ? "NGO admin sign in"
-                  : "Aid worker sign in"}
-            </h2>
             <label>
               Username
               <input name="username" value={form.username} onChange={handleChange} required />
@@ -104,10 +104,10 @@ export default function LoginPage({ onLogin }) {
               />
             </label>
             {error ? <div className="status-banner error">{error}</div> : null}
-            <Button className="full-width" type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Enter workspace"}
-              <ArrowRight size={16} strokeWidth={2.2} />
-            </Button>
+            <button className="button button-primary full-width" type="submit" disabled={loading} style={{marginTop: '1.5rem'}}>
+              {loading ? "Authenticating..." : "Sign In"}
+              <ArrowRight size={16} strokeWidth={1.5} />
+            </button>
           </form>
         </div>
       </section>
