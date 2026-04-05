@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { clearSession, loadStoredSession, saveSession, subscribeToAuthChanges } from "./api/client";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import PlatformDashboardPage from "./pages/PlatformDashboardPage";
@@ -14,20 +15,7 @@ import PersonEnrollmentCreatePage from "./pages/PersonEnrollmentCreatePage";
 import WorkerPage from "./pages/WorkerPage";
 import PrintablePassPage from "./pages/PrintablePassPage";
 
-const STORAGE_KEY = "refupass-session";
 const SUPPORTED_ROLES = new Set(["platform_admin", "ngo_admin", "aid_worker"]);
-
-function loadStoredSession() {
-  try {
-    const session = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-    if (!session || !SUPPORTED_ROLES.has(session.role)) {
-      return null;
-    }
-    return session;
-  } catch (_error) {
-    return null;
-  }
-}
 
 function ProtectedRoute({ session }) {
   const location = useLocation();
@@ -54,15 +42,31 @@ function RoleRoute({ session, allowedRoles }) {
 }
 
 export default function App() {
-  const [session, setSession] = useState(() => loadStoredSession());
+  const [session, setSession] = useState(() => {
+    const stored = loadStoredSession();
+    if (!stored || !SUPPORTED_ROLES.has(stored.role)) {
+      return null;
+    }
+    return stored;
+  });
 
   useEffect(() => {
     if (session) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      saveSession(session, { emit: false });
     } else {
-      window.localStorage.removeItem(STORAGE_KEY);
+      clearSession({ emit: false });
     }
   }, [session]);
+
+  useEffect(() => {
+    return subscribeToAuthChanges((nextSession) => {
+      if (!nextSession || !SUPPORTED_ROLES.has(nextSession.role)) {
+        setSession(null);
+        return;
+      }
+      setSession(nextSession);
+    });
+  }, []);
 
   const onLogin = (nextSession) => {
     setSession(nextSession);
