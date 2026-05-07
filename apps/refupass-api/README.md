@@ -6,8 +6,8 @@ FastAPI backend for the RefuProof platform.
 
 - local role-based login for `platform_admin`, `ngo_admin`, and `aid_worker`
 - shared people, households, NGO programs, enrollments, aid cycles, redemptions, and grievances
-- issuance handoff metadata for the existing `Inji Web` holder flow
-- aid-worker verification orchestration with a pluggable `Inji Verify` client
+- RefuProof-native pass issuance for verified, eligible beneficiaries
+- aid-worker verification orchestration, with a legacy pluggable `Inji Verify` client still available for future interoperability work
 
 ## Quick start
 
@@ -32,17 +32,18 @@ The app seeds demo users, shared people, and NGO enrollments on first run.
 
 Copy `.env.example` to `.env` and adjust as needed.
 
-For the full local demo, keep these values:
+For the full local demo, keep these values and add the remaining secrets from `.env.example`:
 
 ```env
 DATABASE_URL=sqlite:///./refupass.db
-INJI_VERIFY_MODE=passthrough
-INJI_VERIFY_API_URL=http://localhost:18080/v1/verify
-INJI_WEB_URL=http://localhost:3001
-INJI_VERIFY_UI_URL=http://localhost:13000
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:4173
+ESIGNET_UI_URL=http://localhost:3000
+ESIGNET_API_URL=http://localhost:8088
+ESIGNET_CALLBACK_URL=http://127.0.0.1:8000/platform/identity/esignet/callback
 DEMO_BENEFICIARY_SUBJECT=5860356276
 ```
+
+The `INJI_*` variables in `.env.example` are legacy compatibility settings and are not required for the current RefuProof-native pass flow.
 
 ## Tests
 
@@ -60,7 +61,7 @@ The tests use an isolated temporary SQLite database per test run, so they do not
 If you are testing `Verify with eSignet`, run the local helper first:
 
 ```powershell
-cd ..\..\Experiments\esignet-compose
+cd ..\esignet-compose
 powershell -ExecutionPolicy Bypass -File .\setup-demo-flow.ps1
 ```
 

@@ -139,7 +139,7 @@ async def start_identity_verification(
             detail=(
                 "RefuProof could not reach the local eSignet stack. "
                 f"Expected UI at {runtime.settings.esignet_ui_url} and API at {runtime.settings.esignet_api_url}. "
-                "Start Experiments/esignet-compose before verifying a person."
+                "Start apps/esignet-compose before verifying a person."
             ),
         ) from exc
     except RuntimeError as exc:

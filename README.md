@@ -18,15 +18,13 @@ The current main flow is:
 4. issue a `RefuProof-native PDF/QR pass`
 5. verify and redeem the pass in RefuProof
 
-The older Inji-related work remains in `Experiments/` for research and future interoperability, but it is not the main beneficiary path.
+The older Inji experiment compose folders have been removed from the active repo. A few optional legacy Inji settings/client hooks remain in the API for future interoperability, but they are not part of the main beneficiary path.
 
 ## Repository Layout
 
 - `apps/refupass-api` - FastAPI backend, JWT auth, eSignet integration, pass issuance and worker verification
 - `apps/refupass-web` - React + Vite frontend for platform admin, NGO admin, and aid worker flows
-- `Experiments/esignet-compose` - Docker Compose stack for local eSignet, mock identity system, Postgres, and Redis
-- `Experiments/inji-certify` - older Inji issuance experiments
-- `Experiments/inji-verify-compose` - older verification experiments
+- `apps/esignet-compose` - Docker Compose stack for local eSignet, mock identity system, Postgres, and Redis
 
 ## Free And Open-Source Tooling
 
@@ -64,7 +62,7 @@ Required variables:
 - `JWT_REFRESH_TOKEN_TTL_DAYS`
 - `JWT_ISSUER`
 
-Optional experimental variables still present in the codebase:
+Optional legacy Inji variables still present in the API codebase:
 
 - `INJI_VERIFY_MODE`
 - `INJI_VERIFY_API_URL`
@@ -83,7 +81,7 @@ Required variable:
 
 The repo already includes a working Docker Compose file for the identity dependency stack:
 
-- [Experiments/esignet-compose/docker-compose.yml](C:/Users/biruk/OneDrive/Documents/programming/Hackatons/RefuPass/Experiments/esignet-compose/docker-compose.yml)
+- [apps/esignet-compose/docker-compose.yml](apps/esignet-compose/docker-compose.yml)
 
 It starts:
 
@@ -96,7 +94,7 @@ It starts:
 Run it with no extra container configuration:
 
 ```bash
-cd Experiments/esignet-compose
+cd apps/esignet-compose
 docker compose up -d
 ```
 
@@ -115,14 +113,14 @@ Expected result:
 Optional helper to seed demo identities:
 
 ```bash
-cd Experiments/esignet-compose
+cd apps/esignet-compose
 pwsh -File ./setup-demo-flow.ps1
 ```
 
 On Windows:
 
 ```powershell
-cd Experiments\esignet-compose
+cd apps\esignet-compose
 powershell -ExecutionPolicy Bypass -File .\setup-demo-flow.ps1
 ```
 
@@ -131,7 +129,7 @@ powershell -ExecutionPolicy Bypass -File .\setup-demo-flow.ps1
 1. Start eSignet:
 
 ```bash
-cd Experiments/esignet-compose
+cd apps/esignet-compose
 docker compose up -d
 ```
 
@@ -167,7 +165,7 @@ npm run dev
 1. Start eSignet:
 
 ```powershell
-cd Experiments\esignet-compose
+cd apps\esignet-compose
 docker compose up -d
 ```
 
@@ -271,4 +269,4 @@ npm run build
 
 - the main beneficiary flow no longer depends on Inji wallet issuance
 - the offline model is planned architecture, not a fully implemented sync system yet
-- the Inji experiment folders remain for future interoperability work, not the primary product path
+- legacy Inji settings/client hooks remain for future interoperability work, but the old experiment folders are no longer part of the working tree
