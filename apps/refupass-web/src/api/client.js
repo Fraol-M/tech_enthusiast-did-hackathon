@@ -158,7 +158,6 @@ export const api = {
     }),
   getPeople: (_token, search = "") =>
     request(`/people${search ? `?search=${encodeURIComponent(search)}` : ""}`),
-  getDemoIdentities: (_token) => request("/platform/demo-identities"),
   getPrograms: (_token) => request("/programs"),
   startIdentityVerification: (_token, payload) =>
     request("/platform/identity-verifications", {
